@@ -13,7 +13,7 @@ import mlflow
 import wandb
 
 from models import ModelFactory
-from data import TextDataset, collate_fn, TextPreprocessor
+from data_func import TextDataset, collate_fn, TextPreprocessor
 from utils import (
     setup, seed_everything, cleanup_processes, log_gpu_metrics, AverageMeter, AWP, EMA, as_minutes
 )
@@ -46,7 +46,7 @@ class Trainer:
         )
         
 
-        self.preprocessor: Optional[TextPreprocessor] = None
+        self.preprocessor = TextPreprocessor()
         self.model = None
         self.optimizer = None
         self.scheduler = None
@@ -152,11 +152,15 @@ class Trainer:
 
         #reading the text, labels
         text_training, label_training = self._load_csv(
-            self.config.dataset.train_path
+            self.config.dataset.train_path,
+            self.config.dataset.input_col_name,
+            self.config.dataset.label_col_name
         )
 
         text_val, label_val = self._load_csv(
-            self.config.dataset.val_path
+            self.config.dataset.val_path,
+            self.config.dataset.input_col_name,
+            self.config.dataset.label_col_name
         )
 
         train_dataset = TextDataset(
@@ -515,8 +519,3 @@ def train_process(rank: int, world_size: int, config: OmegaConf):
     finally:
         cleanup_processes()
     
-
-
-
-
-

@@ -290,13 +290,13 @@ class AWP:
 
 
 
-def setup(rank: int, world_size: int, timeout_seconds: float = 30000000000000):
+def setup(rank: int, world_size: int, timeout_seconds: float = 3600):
     try:
         timeout = timedelta(seconds=timeout_seconds)
     except TypeError as e:
         raise ValueError("timeout_seconds must be a valid float or integer.") from e
 
-    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_ADDR'] = '127.0.0.1'
     os.environ['MASTER_PORT'] = '5553'
 
     try:
