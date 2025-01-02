@@ -12,13 +12,13 @@ from tqdm import tqdm
 import mlflow
 import wandb
 
-from src.models import ModelFactory
-from src.data import TextDataset, collate_fn, TextPreprocessor
-from src.utils import (
+from models import ModelFactory
+from data import TextDataset, collate_fn, TextPreprocessor
+from utils import (
     setup, seed_everything, cleanup_processes, log_gpu_metrics, AverageMeter, AWP, EMA, as_minutes
 )
-from src.utils import calculate_metrics
-from src.utils import Logger
+from utils import calculate_metrics
+from utils import Logger
 
 
 

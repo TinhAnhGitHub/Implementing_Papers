@@ -5,11 +5,11 @@ import torch.multiprocessing as mp
 import mlflow
 import mlflow.pytorch
 import torch
-from src.training import train_process
-from src.utils import cleanup_processes
+from training import train_process
+from utils import cleanup_processes
 from pyngrok import ngrok
 
-@hydra.main(config_path="configs", config_name="configs")
+@hydra.main(version_base="1.1", config_path="configs", config_name="configs")
 def main(cfg: DictConfig) -> None:
     print(OmegaConf.to_yaml(cfg))
     

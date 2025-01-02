@@ -1,6 +1,6 @@
 from typing import Dict, Any
 
-from Transfomers.src.models import TransformerEncoderCls
+from models import TransformerEncoderCls
 from torch import nn as nn
 
 

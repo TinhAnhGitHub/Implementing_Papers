@@ -1,7 +1,7 @@
 from typing import List, Tuple
 import torch
 from torch.utils.data import Dataset
-from src.data.data_preprocessing import TextPreprocessor
+from data import TextPreprocessor
 
 
 

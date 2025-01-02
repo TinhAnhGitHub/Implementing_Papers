@@ -127,15 +127,6 @@ EMOJI_SENTIMENT_MAP = {
     "⊙": "Biểu tượng đặc biệt",
     "💟": "Trái tim yêu thương",
     "😸": "Mèo cười",
-    "🍃": "Lá cây",
     "👱": "Người tóc vàng",
-    "➖": "Dấu trừ",
-    "💨": "Gió, không khí",
-    "🐾": "Dấu chân thú cưng",
-    "": "Biểu tượng đặc biệt",
-    "🍵": "Trà",
-    "💥": "Nổ, vụ nổ",
-    "🎶": "Âm nhạc",
-    "💦": "Mồ hôi",
-    "🖤": "Trái tim đen"
+    "💨": "Gió, không khí"
 }

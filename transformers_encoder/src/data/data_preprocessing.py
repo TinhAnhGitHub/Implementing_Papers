@@ -6,7 +6,7 @@ import torch
 from collections import Counter
 from pyvi import ViTokenizer
 from omegaconf import OmegaConf 
-from src.constant import EMOJI_SENTIMENT_MAP
+from constant import EMOJI_SENTIMENT_MAP
 from tqdm.auto import tqdm
 from joblib import Parallel, delayed
 

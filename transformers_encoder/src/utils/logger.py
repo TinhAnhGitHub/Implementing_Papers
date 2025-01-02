@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 from omegaconf import OmegaConf
 
-from src.utils import init_wandb
+from utils import init_wandb
 
 
 
