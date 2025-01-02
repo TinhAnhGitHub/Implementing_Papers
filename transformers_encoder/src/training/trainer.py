@@ -369,7 +369,7 @@ class Trainer:
         
         progress_bar = tqdm(
             total=len(self.train_dl),
-            desc=f"[EPOCH {epoch+1}/{self.config.train_params.num_epochs}]",
+            desc=f"[{self.rank}] - [EPOCH {epoch+1}/{self.config.train_params.num_epochs}]",
             bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}'
         )
         
@@ -493,13 +493,13 @@ class Trainer:
 
         self.start_time = time.time()
 
+        self.logger("Len of the train loader: ", len(self.train_dl))
+
         for epoch in range(
             self.config.train_params.num_epochs
         ):  
             
             self.train_one_epoch(epoch)
-        
-
         self.logger(f"Training completed. Total time: {as_minutes(time.time() - self.start_time)}")
 
         cleanup_processes()
