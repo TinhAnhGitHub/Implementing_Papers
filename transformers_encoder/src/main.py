@@ -39,29 +39,26 @@ def main(cfg: DictConfig) -> None:
     # Convert config to dict for easier handling
     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
     print(OmegaConf.to_yaml(cfg))
-    print(cfg.use_wandb)
+
     
     mlflow_port = None
     ngrok_tunnel = None
     
-
+    print(cfg.use_wandb)
     if cfg.use_mlflow:
         try:
             cleanup_mlflow()
             
-            # Find a free port
             mlflow_port = find_free_port()
             
             os.system(f"mlflow ui --port {mlflow_port} &")
-            time.sleep(2)  # Give MLflow server time to start
+            time.sleep(2) 
             
-            # Set up ngrok tunnel
             ngrok.kill() 
             ngrok.set_auth_token(cfg.ngrok.auth_token)  
             ngrok_tunnel = ngrok.connect(addr=str(mlflow_port), proto="http", bind_tls=True)
             print("MLflow Tracking UI:", ngrok_tunnel.public_url)
             
-            # MLflow setup
             mlflow.pytorch.autolog()
             mlflow.set_tracking_uri(cfg.mlflow.tracking_uri)
             mlflow.set_experiment(cfg.mlflow.experiment_name)
@@ -85,9 +82,9 @@ def main(cfg: DictConfig) -> None:
             world_size = torch.cuda.device_count()
             try:
                 if world_size > 1:
-                    main_ddp(world_size, cfg_dict)
+                    main_ddp(world_size, cfg)
                 else:
-                    train_process(0, 1, cfg_dict)
+                    train_process(0, 1, cfg)
             except Exception as e:
                 raise e
             finally:
@@ -96,14 +93,15 @@ def main(cfg: DictConfig) -> None:
         world_size = torch.cuda.device_count()
         try:
             if world_size > 1:
-                main_ddp(world_size, cfg_dict)
+                main_ddp(world_size, cfg)
             else:
-                train_process(0, 1, cfg_dict)
+                train_process(0, 1, cfg)
         except Exception as e:
             raise e
         finally:
             cleanup_processes()
     
+    # Cleanup at the end
     if ngrok_tunnel:
         try:
             ngrok.disconnect(ngrok_tunnel.public_url)
@@ -112,10 +110,11 @@ def main(cfg: DictConfig) -> None:
     if mlflow_port:
         cleanup_mlflow()
 
-def main_ddp(world_size: int, config):
+def main_ddp(world_size: int, cfg):
+    print(cfg.use_wandb)
     mp.spawn(
         train_process,
-        args=(world_size, config),
+        args=(world_size, cfg),
         nprocs=world_size,
         join=True
     )
