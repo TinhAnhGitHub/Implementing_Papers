@@ -66,7 +66,7 @@ def seed_everything(seed: int) -> None:
 
 
 
-def init_wandb(config: OmegaConf) :
+def init_wandb(config: dict) :
     """
     Initialize a Weights & Biases (wandb) run with the given configuration.
     
@@ -81,9 +81,11 @@ def init_wandb(config: OmegaConf) :
         - Uses anonymous mode for logging
         - Sets project, tags, and run name from config
     """
-    project = config.wandb.project
-    tags = config.tags
-    run_id = f"{config.wandb.run_name}-all-data"
+    project = config["wandb"]["project"]
+    tags = config["tags"]
+    
+    
+    run_id = f"{config['wandb']['run_name']}-all-data"
     
     return wandb.init(
         project=project,

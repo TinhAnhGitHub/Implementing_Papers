@@ -501,6 +501,7 @@ class Trainer:
 
 
 def train_process(rank: int, world_size: int, config: OmegaConf):
+    
     try:
         trainer = Trainer(
             config=config,

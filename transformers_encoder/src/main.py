@@ -18,14 +18,12 @@ def is_port_in_use(port):
         return s.connect_ex(('localhost', port)) == 0
 
 def find_free_port(start_port=5000, max_port=5010):
-    """Find a free port in the given range."""
     for port in range(start_port, max_port):
         if not is_port_in_use(port):
             return port
     raise RuntimeError(f"No free ports found in range {start_port}-{max_port}")
 
 def cleanup_mlflow():
-    """Cleanup MLflow processes."""
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
         try:
             cmdline = proc.info['cmdline']
@@ -36,7 +34,6 @@ def cleanup_mlflow():
 
 @hydra.main(version_base="1.1", config_path="configs", config_name="configs")
 def main(cfg: DictConfig) -> None:
-    # Convert config to dict for easier handling
     cfg_dict = OmegaConf.to_container(cfg, resolve=True)
     print(OmegaConf.to_yaml(cfg))
 
