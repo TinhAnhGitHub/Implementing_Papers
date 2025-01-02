@@ -15,8 +15,7 @@ class Logger:
         self.logger = self.setup_logging(log_dir)
         self.rank = rank
         if config.use_wandb:  
-            cfg_dict = OmegaConf.to_container(config, resolve=True)  
-            init_wandb(cfg_dict)  
+            init_wandb(config)  
 
 
     def setup_logging(self, log_dir: str) -> logging.Logger:

@@ -1,0 +1,51 @@
+seed: 42
+experiment_name: transformer_classifier
+dataset:
+  train_path: null
+  val_path: null
+  test_path: null
+  input_col_name: null
+  label_col_name: null
+model:
+  vocab_size: 30000
+  max_length: 200
+  num_layers: 3
+  embed_dim: 200
+  num_heads: 4
+  ff_dim: 128
+  dropout: 0.1
+  num_classes: 2
+train_params:
+  num_epochs: 50
+  train_bs: 128
+  valid_bs: 128
+  grad_accumulation: 1
+  warmup_pct: 0.1
+  patience: 5
+  num_workers: 4
+  validation_per_step: 100
+  print_gpu_stats_each_steps: 100
+  use_ema: true
+  decay_rate: 0.99
+optimizer:
+  lr: 0.0001
+  weight_decay: 0.01
+  grad_clip_value: 1.0
+awp:
+  use_awp: true
+  adv_lr: 0.0001
+  adv_eps: 0.001
+  awp_trigger_epoch: 1
+early_stopping_enable: true
+use_wandb: true
+wandb:
+  project: transformer_classifier
+  run_name: transformer_classifier_v01
+tags:
+- v0.1
+use_mlflow: true
+mlflow:
+  tracking_uri: file:/kaggle/working/mlruns
+  experiment_name: transformer_classifier
+ngrok:
+  auth_token: 2r3usoWZK9DVc0engPyhfWoobXd_7YvWBy93sSNsuZC5FVVdh
