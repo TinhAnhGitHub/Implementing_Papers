@@ -45,8 +45,9 @@ class Trainer:
             device_placement=True
         )
         
+        
 
-        self.preprocessor = TextPreprocessor()
+        self.preprocessor = TextPreprocessor(config)
         self.model = None
         self.optimizer = None
         self.scheduler = None
@@ -66,14 +67,14 @@ class Trainer:
             'loss': AverageMeter(),
             'precision': AverageMeter(),
             'recall': AverageMeter(),
-            'f1': AverageMeter()
+            'f1_score': AverageMeter()
         }   
 
         self.val_metrics = {
             'loss': AverageMeter(),
             'precision': AverageMeter(),
             'recall': AverageMeter(),
-            'f1': AverageMeter()
+            'f1_score': AverageMeter()
         }
 
     
@@ -94,9 +95,9 @@ class Trainer:
                     'train': self.train_metrics['recall'].avg,
                     'val': self.val_metrics['recall'].avg
                 },
-                'f1': {
-                    'train': self.train_metrics['f1'].avg,
-                    'val': self.val_metrics['f1'].avg
+                'f1_score': {
+                    'train': self.train_metrics['f1_score'].avg,
+                    'val': self.val_metrics['f1_score'].avg
                 }
             }
             if self.config.use_mlflow:
@@ -215,10 +216,11 @@ class Trainer:
         """Initialie model, optimizer, and other stuff"""
 
         self.model = ModelFactory.create_model(
-            "transformer_only",
-            vocab_size=len(self.preprocessor.vocab),
+            "transformer_encoder_only",
             **self.config.model
         )
+        self.model = self.model.cuda(self.rank)  
+
         self.logger("Model initialized!")
         if self.world_size > 1:
             self.model = DDP(
@@ -227,7 +229,7 @@ class Trainer:
             self.logger("Model initialized with DDP")
 
         self.optimizer = torch.optim.AdamW(
-            self.models.parameters(),
+            self.model.parameters(),
             lr = self.config.optimizer.lr,
             weight_decay=self.config.optimizer.weight_decay
         )
@@ -398,13 +400,13 @@ class Trainer:
                     self.val_metrics['loss'].update(metrics_val['valid_loss'])
                     self.val_metrics['precision'].update(metrics_val['precision'])
                     self.val_metrics['recall'].update(metrics_val['recall'])
-                    self.val_metrics['f1'].update(metrics_val['f1'])
+                    self.val_metrics['f1_score'].update(metrics_val['f1_score'])
                 
                 if metrics_train:
                     self.train_metrics['loss'].update(loss)
                     self.train_metrics['precision'].update(metrics_train['precision'])
                     self.train_metrics['recall'].update(metrics_train['recall'])
-                    self.train_metrics['f1'].update(metrics_train['f1'])
+                    self.train_metrics['f1_score'].update(metrics_train['f1_score'])
                 
                 self._log_comparative_metrics(
                     step=len(self.train_dl) * epoch + step
@@ -414,8 +416,8 @@ class Trainer:
                     'Rank': self.rank,
                     'Train Loss': f"{self.train_metrics['loss'].avg:.4f}",
                     'Val Loss': f"{self.val_metrics['loss'].avg:.4f}",
-                    'Train F1': f"{self.train_metrics['f1'].avg:.4f}",
-                    'Val F1': f"{self.val_metrics['f1'].avg:.4f}",
+                    'Train F1': f"{self.train_metrics['f1_score'].avg:.4f}",
+                    'Val F1': f"{self.val_metrics['f1_score'].avg:.4f}",
                     'LR': f"{self.scheduler.get_last_lr()[0]:.6f}"
                 })
                 
@@ -442,7 +444,7 @@ class Trainer:
             
             if (step + 1) % self.config.train_params.grad_accumulation == 0:
                 torch.nn.utils.clip_grad_norm_(
-                    self.models.parameters(),
+                    self.model.parameters(),
                     self.config.optimizer.grad_clip_value
                 )
                 self.optimizer.step()

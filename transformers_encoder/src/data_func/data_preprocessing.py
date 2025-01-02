@@ -102,7 +102,7 @@ class TextPreprocessor:
         vocab = {"<pad>": 0, "<unk>": 1, "<cls>": 2}
 
         for token, freq in token_counter.items():
-            if freq >= 2 and len(vocab) < self.config.VOCAB_SIZE:
+            if freq >= 2 and len(vocab) < self.config.model.vocab_size:
                 vocab[token] = len(vocab)
 
         self.vocab = vocab
@@ -128,9 +128,9 @@ class TextPreprocessor:
 
         encoded = [self.vocab["<cls>"]] + [self.vocab.get(token, self.vocab["<unk>"]) for token in tokens]
 
-        if len(encoded) < self.config.MAX_LENGTH:
-            encoded.extend([self.vocab["<pad>"]] * (self.config.MAX_LENGTH - len(encoded)))
+        if len(encoded) < self.config.model.max_length:
+            encoded.extend([self.vocab["<pad>"]] * (self.config.model.max_length - len(encoded)))
         else:
-            encoded = encoded[:self.config.MAX_LENGTH]
+            encoded = encoded[:self.config.model.max_length]
 
         return torch.tensor(encoded, dtype=torch.long)

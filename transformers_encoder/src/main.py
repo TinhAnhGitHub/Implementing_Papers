@@ -108,6 +108,7 @@ def main(cfg: DictConfig) -> None:
         cleanup_mlflow()
 
 def main_ddp(world_size: int, cfg):
+    
     print(cfg.use_wandb)
     mp.spawn(
         train_process,
