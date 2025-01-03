@@ -30,7 +30,7 @@ def as_minutes(seconds: Union[int, float]) -> str:
     minutes = math.floor(seconds / 60)
     remained_seconds = seconds % 60
 
-    formatted_seconds = f"{remained_seconds:.2f}".rsplit('0').rstrip('.')
+    formatted_seconds = f"{remained_seconds:.2f}"
 
     time_components = []
     if days > 0:

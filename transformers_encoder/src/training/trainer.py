@@ -10,6 +10,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 import mlflow
 import wandb
+from colorama import Fore, Style
 
 from models import ModelFactory
 from data_func import TextDataset, collate_fn, TextPreprocessor
@@ -308,7 +309,7 @@ class Trainer:
                 all_labels.extend(labels.detach().cpu().numpy())
             
             metrics = calculate_metrics(all_labels, all_preds)
-            metrics['valid_loss'] = valid_loss.avg
+            metrics['loss'] = valid_loss.avg
 
             if self.ema:
                 self.ema.restore()
@@ -435,7 +436,7 @@ class Trainer:
                     self.val_metrics['recall'].update(metrics_val['recall'])
                     self.val_metrics['f1_score'].update(metrics_val['f1_score'])
                 
-                if metrics_train.get('loss', None) is not None:
+                if metrics_train.get('precision', None) is not None:
                     self.train_metrics['loss'].update(loss)
                     self.train_metrics['precision'].update(metrics_train['precision'])
                     self.train_metrics['recall'].update(metrics_train['recall'])
@@ -489,11 +490,21 @@ class Trainer:
                     self.ema.update()
             
             if (step + 1) % self.config.train_params.print_gpu_stats_each_steps == 0:
-                metrics = log_gpu_metrics()
-                self.logger(metrics['gpu_used_memory_mb'])
-                self.logger(metrics['gpu_total_memory_mb'])
-                self.logger(metrics['gpu_utilization'])  
-                self.logger(metrics['gpu_temperature']) 
+                metrics_gpu = log_gpu_metrics()
+                gpu_utilization = metrics_gpu.get('gpu_utilization', 0)
+                gpu_memory = metrics_gpu.get('gpu_used_memory_mb', 0)
+                gpu_total_memory = metrics_gpu.get('gpu_total_memory_mb', 0)
+                gpu_temperature = metrics_gpu.get('gpu_temperature', 0)
+
+                gpu_utilization_color = Fore.GREEN if gpu_utilization < 50 else Fore.YELLOW if gpu_utilization < 80 else Fore.RED
+                gpu_memory_color = Fore.GREEN if gpu_memory < gpu_total_memory * 0.5 else Fore.YELLOW if gpu_memory < gpu_total_memory * 0.8 else Fore.RED
+                gpu_temperature_color = Fore.GREEN if gpu_temperature < 70 else Fore.YELLOW if gpu_temperature < 85 else Fore.RED
+
+                self.logger(
+                    f"🎮 GPU Utilization: {gpu_utilization_color}{gpu_utilization}%{Style.RESET_ALL} | "
+                    f"💾 GPU Memory: {gpu_memory_color}{gpu_memory:.2f} MB / {gpu_total_memory:.2f} MB{Style.RESET_ALL} | "
+                    f"🌡️ GPU Temperature: {gpu_temperature_color}{gpu_temperature}°C{Style.RESET_ALL}"
+                )
             progress_bar.update(1)
             
         
