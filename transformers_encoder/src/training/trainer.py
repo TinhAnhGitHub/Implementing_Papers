@@ -441,10 +441,10 @@ class Trainer:
                     self.train_metrics['precision'].update(metrics_train['precision'])
                     self.train_metrics['recall'].update(metrics_train['recall'])
                     self.train_metrics['f1_score'].update(metrics_train['f1_score'])
-                
-                self._log_comparative_metrics(
-                    step=len(self.train_dl) * epoch + step
-                )
+                if self.rank == 0 or self.world_size == 1:
+                    self._log_comparative_metrics(
+                        step=len(self.train_dl) * epoch + step
+                    )
                 
                 progress_bar.set_postfix({
                     'Rank': self.rank,
