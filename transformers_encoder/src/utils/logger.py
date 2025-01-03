@@ -38,7 +38,7 @@ class Logger:
         return logger
     
     def log(self, message: str, level: int = logging.INFO):
-        message = f"[{self.rank}]: " + message
+        message = f"[Rank - {self.rank}]: " + message
         print(message)
         self.logger.log(
             level,

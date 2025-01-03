@@ -109,10 +109,13 @@ class Trainer:
                 
             if self.config.use_wandb:
                 for metric_name, values in comparative_metrics.items():
+                    train_value = torch.tensor(values['train'], dtype=torch.float32)
+                    val_value = torch.tensor(values['val'], dtype=torch.float32)
+
                     wandb.log({
                         f"{metric_name}_comparision": wandb.plot.line_series(
                             xs=[step],
-                            ys=[[values['train']], [values['val']]],
+                            ys=[[train_value], [val_value]],
                             keys = ['Train', 'Validation'],
                             title=f"{metric_name.capitalize()} Comparision",
                             xname="step"
@@ -286,7 +289,7 @@ class Trainer:
             all_labels = []
             valid_loss = AverageMeter()
 
-            for batch in tqdm(self.valid_dl, desc="Evaluating"):
+            for batch in tqdm(self.valid_dl, desc=f"[Rank: {self.rank}] - [Validation] - Evaluating"):
                 
                 input_ids, valid_lengths, labels = batch
 
@@ -334,7 +337,7 @@ class Trainer:
             all_labels = []
             
 
-            for batch in tqdm(self.train_dl, desc="Evaluating"):
+            for batch in tqdm(self.train_dl, desc="[Rank: {self.rank}] - [Train] - Evaluating"):
                 
                 input_ids, valid_lengths, labels = batch
 
@@ -369,7 +372,7 @@ class Trainer:
         
         progress_bar = tqdm(
             total=len(self.train_dl),
-            desc=f"[{self.rank}] - [EPOCH {epoch+1}/{self.config.train_params.num_epochs}]",
+            desc=f"[Rank: {self.rank}] - [EPOCH {epoch+1}/{self.config.train_params.num_epochs}]",
             bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}'
         )
         
