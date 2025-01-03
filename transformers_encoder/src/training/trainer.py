@@ -99,6 +99,7 @@ class Trainer:
                 'val': self.val_metrics['f1_score'].avg
             }
         }
+        
         if self.rank == 0 or self.world_size == 1:
             if self.config.use_mlflow:
                 self.logger("Plotting mlflow")
@@ -110,21 +111,14 @@ class Trainer:
                     
             if self.config.use_wandb:
                 self.logger("Plotting wandb")
-
+                # Log metrics directly to wandb
+                wandb_metrics = {}
                 for metric_name, values in comparative_metrics.items():
-                    train_value = torch.tensor(values['train'], dtype=torch.float32)
-                    val_value = torch.tensor(values['val'], dtype=torch.float32)
-
-                    wandb.log({
-                        f"{metric_name}_comparision": wandb.plot.line_series(
-                            xs=[step],
-                            ys=[[train_value], [val_value]],
-                            keys = ['Train', 'Validation'],
-                            title=f"{metric_name.capitalize()} Comparision",
-                            xname="step"
-                        )
-                    }, step=step)
+                    wandb_metrics[f"train/{metric_name}"] = values['train']
+                    wandb_metrics[f"val/{metric_name}"] = values['val']
                 
+                wandb.log(wandb_metrics, step=step)
+        
         metric_str = " | ".join([
             f"{k.upper()}: train={v['train']:.4f}, val={v['val']:.4f}"
             for k, v in comparative_metrics.items()
