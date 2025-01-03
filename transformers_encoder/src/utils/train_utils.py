@@ -254,7 +254,7 @@ class AWP:
             valid_lens=batch["valid_lengths"]
         )
         labels = batch["labels"]
-        adv_loss = self.model.criterion(outputs, labels)  
+        adv_loss = self.criterion(outputs, labels)  
         adv_loss = adv_loss.mean()
         self.optimizer.zero_grad()
         accelerator.backward(adv_loss)

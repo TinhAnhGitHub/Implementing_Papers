@@ -470,14 +470,13 @@ class Trainer:
                     return
 
             if self.awp and epoch >= self.config.awp.awp_trigger_epoch:
-                self.logger("AWP...")
+               
                 self.awp.attack_backward(
                     {"input_ids": input_ids, "valid_lengths": valid_lengths, "labels": labels}, 
                     self.accelerator
                 )
             
             if (step + 1) % self.config.train_params.grad_accumulation == 0:
-                self.logger("Gradient calculation and updating...")
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(),
                     self.config.optimizer.grad_clip_value
@@ -485,13 +484,16 @@ class Trainer:
                 self.optimizer.step()
                 self.scheduler.step()
                 self.optimizer.zero_grad()
-                self.logger("before ema")
+               
                 if self.ema:
                     self.ema.update()
-                    self.logger("after ema")
             
             if (step + 1) % self.config.train_params.print_gpu_stats_each_steps == 0:
-                log_gpu_metrics()
+                metrics = log_gpu_metrics()
+                self.logger(metrics['gpu_used_memory_mb'])
+                self.logger(metrics['gpu_total_memory_mb'])
+                self.logger(metrics['gpu_utilization'])  
+                self.logger(metrics['gpu_temperature']) 
             progress_bar.update(1)
             
         

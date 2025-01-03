@@ -76,16 +76,7 @@ def main(cfg: DictConfig) -> None:
                     cleanup_processes()
         except Exception as e:
             print(f"Error setting up MLflow: {str(e)}")
-            world_size = torch.cuda.device_count()
-            try:
-                if world_size > 1:
-                    main_ddp(world_size, cfg)
-                else:
-                    train_process(0, 1, cfg)
-            except Exception as e:
-                raise e
-            finally:
-                cleanup_processes()
+            raise e
     else:
         world_size = torch.cuda.device_count()
         try:
@@ -108,7 +99,7 @@ def main(cfg: DictConfig) -> None:
         cleanup_mlflow()
 
 def main_ddp(world_size: int, cfg):
-    
+
     print(cfg.use_wandb)
     mp.spawn(
         train_process,
