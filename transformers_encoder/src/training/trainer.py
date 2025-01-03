@@ -461,7 +461,7 @@ class Trainer:
                 else:
                     self.patience_counter += 1
                 
-                if self.patience_counter >= self.config.train_params.patience:
+                if self.config.train_params.patience != -1 and self.patience_counter >= self.config.train_params.patience:
                     self.logger("Early stopping triggered.")
                     progress_bar.close()
                     return
