@@ -110,13 +110,20 @@ class Trainer:
                     
             if self.config.use_wandb:
                 self.logger("Plotting wandb")
-                wandb_metrics = {}
+
                 for metric_name, values in comparative_metrics.items():
                     train_value = torch.tensor(values['train'], dtype=torch.float32)
                     val_value = torch.tensor(values['val'], dtype=torch.float32)
-                    wandb_metrics[f"train_{metric_name}"] = train_value
-                    wandb_metrics[f"val_{metric_name}"] = val_value
-                wandb.log(wandb_metrics, step=step)
+
+                    wandb.log({
+                        f"{metric_name}_comparision": wandb.plot.line_series(
+                            xs=[step],
+                            ys=[[train_value], [val_value]],
+                            keys = ['Train', 'Validation'],
+                            title=f"{metric_name.capitalize()} Comparision",
+                            xname="step"
+                        )
+                    }, step=step)
                 
         metric_str = " | ".join([
             f"{k.upper()}: train={v['train']:.4f}, val={v['val']:.4f}"
