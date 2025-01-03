@@ -80,8 +80,7 @@ class Trainer:
     
     
 
-    def _log_comparative_metrics(self, step: int) :
-        
+    def _log_comparative_metrics(self, step: int):
         comparative_metrics = {
             'loss': {
                 'train': self.train_metrics['loss'].avg,
@@ -100,28 +99,25 @@ class Trainer:
                 'val': self.val_metrics['f1_score'].avg
             }
         }
-        if self.config.use_mlflow:
-            for metric_name, values in comparative_metrics.items():
-                mlflow.log_metrics({
-                    f"train_{metric_name}": values['train'],
-                    f"val_{metric_name}": values['val']
-                }, step=step)
-            
-        if self.config.use_wandb:
-            for metric_name, values in comparative_metrics.items():
-                train_value = torch.tensor(values['train'], dtype=torch.float32)
-                val_value = torch.tensor(values['val'], dtype=torch.float32)
-
-                wandb.log({
-                    f"{metric_name}_comparision": wandb.plot.line_series(
-                        xs=[step],
-                        ys=[[train_value], [val_value]],
-                        keys = ['Train', 'Validation'],
-                        title=f"{metric_name.capitalize()} Comparision",
-                        xname="step"
-                    )
-                }, step=step)
-            
+        if self.rank == 0 or self.world_size == 1:
+            if self.config.use_mlflow:
+                self.logger("Plotting mlflow")
+                for metric_name, values in comparative_metrics.items():
+                    mlflow.log_metrics({
+                        f"train_{metric_name}": values['train'],
+                        f"val_{metric_name}": values['val']
+                    }, step=step)
+                    
+            if self.config.use_wandb:
+                self.logger("Plotting wandb")
+                wandb_metrics = {}
+                for metric_name, values in comparative_metrics.items():
+                    train_value = torch.tensor(values['train'], dtype=torch.float32)
+                    val_value = torch.tensor(values['val'], dtype=torch.float32)
+                    wandb_metrics[f"train_{metric_name}"] = train_value
+                    wandb_metrics[f"val_{metric_name}"] = val_value
+                wandb.log(wandb_metrics, step=step)
+                
         metric_str = " | ".join([
             f"{k.upper()}: train={v['train']:.4f}, val={v['val']:.4f}"
             for k, v in comparative_metrics.items()
@@ -441,10 +437,10 @@ class Trainer:
                     self.train_metrics['precision'].update(metrics_train['precision'])
                     self.train_metrics['recall'].update(metrics_train['recall'])
                     self.train_metrics['f1_score'].update(metrics_train['f1_score'])
-                if self.rank == 0 or self.world_size == 1:
-                    self._log_comparative_metrics(
-                        step=len(self.train_dl) * epoch + step
-                    )
+                
+                self._log_comparative_metrics(
+                    step=len(self.train_dl) * epoch + step
+                )
                 
                 progress_bar.set_postfix({
                     'Rank': self.rank,
@@ -490,11 +486,11 @@ class Trainer:
                     self.ema.update()
             
             if (step + 1) % self.config.train_params.print_gpu_stats_each_steps == 0:
-                metrics_gpu = log_gpu_metrics()
-                gpu_utilization = metrics_gpu.get('gpu_utilization', 0)
-                gpu_memory = metrics_gpu.get('gpu_used_memory_mb', 0)
-                gpu_total_memory = metrics_gpu.get('gpu_total_memory_mb', 0)
-                gpu_temperature = metrics_gpu.get('gpu_temperature', 0)
+                metrics = log_gpu_metrics()
+                gpu_utilization = metrics.get('gpu_utilization', 0)
+                gpu_memory = metrics.get('gpu_used_memory_mb', 0)
+                gpu_total_memory = metrics.get('gpu_total_memory_mb', 0)
+                gpu_temperature = metrics.get('gpu_temperature', 0)
 
                 gpu_utilization_color = Fore.GREEN if gpu_utilization < 50 else Fore.YELLOW if gpu_utilization < 80 else Fore.RED
                 gpu_memory_color = Fore.GREEN if gpu_memory < gpu_total_memory * 0.5 else Fore.YELLOW if gpu_memory < gpu_total_memory * 0.8 else Fore.RED
