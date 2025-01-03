@@ -315,18 +315,18 @@ class Trainer:
                 metrics_tensor = torch.tensor(
                     list(metrics.values()), dtype=torch.float32
                 ).to(self.rank)
-                self.logger("Broadcasting")
+                
                 dist.broadcast(metrics_tensor, src=0)
-                self.logger("Broacasted")
+                
                 metrics = dict(zip(metrics.keys(), metrics_tensor.tolist()))
             return metrics
         
         else:
             if self.world_size > 1:
                 metrics_tensor = torch.zeros(len(self.train_metrics), dtype=torch.float32).to(self.rank)
-                self.logger("Waiting for main rank 0 to broadcast")
+              
                 dist.broadcast(metrics_tensor, src=0)
-                self.logger("Metric tensors received")
+               
                 metrics = dict(zip(self.train_metrics.keys(), metrics_tensor.tolist()))
                 return metrics
         return {}
@@ -370,9 +370,9 @@ class Trainer:
                 metrics_tensor = torch.tensor(
                     list(metrics.values()), dtype=torch.float32
                 ).to(self.rank)
-                self.logger("Broadcasting")
+                
                 dist.broadcast(metrics_tensor, src=0)
-                self.logger("Broacasted")
+                
                 metrics = dict(zip(metrics.keys(), metrics_tensor.tolist()))
             
 
@@ -381,9 +381,8 @@ class Trainer:
         else:
             if self.world_size > 1:
                 metrics_tensor = torch.zeros(len(self.train_metrics), dtype=torch.float32).to(self.rank)
-                self.logger("Waiting for main rank 0 to broadcast")
                 dist.broadcast(metrics_tensor, src=0)
-                self.logger("Metric tensors received")
+                
                 metrics = dict(zip(self.train_metrics.keys(), metrics_tensor.tolist()))
                 return metrics
         return {}
