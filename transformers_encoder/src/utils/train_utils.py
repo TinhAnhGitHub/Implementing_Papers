@@ -233,7 +233,7 @@ class AWP:
     adapted from: https://www.kaggle.com/code/wht1996/feedback-nn-train/notebook
     """
 
-    def __init__(self, model, optimizer, adv_param="weight", adv_lr=1, adv_eps=0.0001):
+    def __init__(self, model, optimizer, criterion, adv_param="weight", adv_lr=1, adv_eps=0.0001):
         self.model = model
         self.optimizer = optimizer
         self.adv_param = adv_param
@@ -241,6 +241,7 @@ class AWP:
         self.adv_eps = adv_eps
         self.backup = {}
         self.backup_eps = {}
+        self.criterion = criterion
 
     def attack_backward(self, batch, accelerator):
         if self.adv_lr == 0:
@@ -248,10 +249,13 @@ class AWP:
         self._save()
         self._attack_step()
 
-        adv_loss = self.model(
+        outputs  = self.model(
             X=batch["input_ids"],
             valid_lens=batch["valid_lengths"]
         )
+        labels = batch["labels"]
+        adv_loss = self.model.criterion(outputs, labels)  
+        adv_loss = adv_loss.mean()
         self.optimizer.zero_grad()
         accelerator.backward(adv_loss)
         self._restore()

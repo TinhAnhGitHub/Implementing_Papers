@@ -1,5 +1,4 @@
 import os
-
 import time
 from typing import Dict, Optional, Union, List, Any
 import torch
@@ -81,47 +80,47 @@ class Trainer:
     
 
     def _log_comparative_metrics(self, step: int) :
-        if self.rank == 0 or self.world_size == 1:
-            comparative_metrics = {
-                'loss': {
-                    'train': self.train_metrics['loss'].avg,
-                    'val': self.val_metrics['loss'].avg
-                },
-                'precision': {
-                    'train': self.train_metrics['precision'].avg,
-                    'val': self.val_metrics['precision'].avg
-                },
-                'recall': {
-                    'train': self.train_metrics['recall'].avg,
-                    'val': self.val_metrics['recall'].avg
-                },
-                'f1_score': {
-                    'train': self.train_metrics['f1_score'].avg,
-                    'val': self.val_metrics['f1_score'].avg
-                }
+        
+        comparative_metrics = {
+            'loss': {
+                'train': self.train_metrics['loss'].avg,
+                'val': self.val_metrics['loss'].avg
+            },
+            'precision': {
+                'train': self.train_metrics['precision'].avg,
+                'val': self.val_metrics['precision'].avg
+            },
+            'recall': {
+                'train': self.train_metrics['recall'].avg,
+                'val': self.val_metrics['recall'].avg
+            },
+            'f1_score': {
+                'train': self.train_metrics['f1_score'].avg,
+                'val': self.val_metrics['f1_score'].avg
             }
-            if self.config.use_mlflow:
-                for metric_name, values in comparative_metrics.items():
-                    mlflow.log_metrics({
-                        f"train_{metric_name}": values['train'],
-                        f"val_{metric_name}": values['val']
-                    }, step=step)
-                
-            if self.config.use_wandb:
-                for metric_name, values in comparative_metrics.items():
-                    train_value = torch.tensor(values['train'], dtype=torch.float32)
-                    val_value = torch.tensor(values['val'], dtype=torch.float32)
+        }
+        if self.config.use_mlflow:
+            for metric_name, values in comparative_metrics.items():
+                mlflow.log_metrics({
+                    f"train_{metric_name}": values['train'],
+                    f"val_{metric_name}": values['val']
+                }, step=step)
+            
+        if self.config.use_wandb:
+            for metric_name, values in comparative_metrics.items():
+                train_value = torch.tensor(values['train'], dtype=torch.float32)
+                val_value = torch.tensor(values['val'], dtype=torch.float32)
 
-                    wandb.log({
-                        f"{metric_name}_comparision": wandb.plot.line_series(
-                            xs=[step],
-                            ys=[[train_value], [val_value]],
-                            keys = ['Train', 'Validation'],
-                            title=f"{metric_name.capitalize()} Comparision",
-                            xname="step"
-                        )
-                    }, step=step)
-                
+                wandb.log({
+                    f"{metric_name}_comparision": wandb.plot.line_series(
+                        xs=[step],
+                        ys=[[train_value], [val_value]],
+                        keys = ['Train', 'Validation'],
+                        title=f"{metric_name.capitalize()} Comparision",
+                        xname="step"
+                    )
+                }, step=step)
+            
         metric_str = " | ".join([
             f"{k.upper()}: train={v['train']:.4f}, val={v['val']:.4f}"
             for k, v in comparative_metrics.items()
@@ -255,16 +254,17 @@ class Trainer:
             self.ema.register()
             self.logger("EMA initialized")
         
+        self.criterion = torch.nn.CrossEntropyLoss()
         if self.config.awp.use_awp:
             self.awp = AWP(
                 self.model,
                 self.optimizer,
+                self.criterion,
                 adv_lr=self.config.awp.adv_lr,
                 adv_eps=self.config.awp.adv_eps
             )
             self.logger("Adversial Weight Pertubation initialized!")
         
-        self.criterion = torch.nn.CrossEntropyLoss()
         self.logger("Criterion initialized!")
         self.model, self.optimizer, self.train_dl, self.valid_dl = \
             self.accelerator.prepare(self.model, self.optimizer, self.train_dl, self.valid_dl)
@@ -313,11 +313,24 @@ class Trainer:
             if self.ema:
                 self.ema.restore()
             
-
+            if self.world_size > 1:
+                metrics_tensor = torch.tensor(
+                    list(metrics.values()), dtype=torch.float32
+                ).to(self.rank)
+                self.logger("Broadcasting")
+                dist.broadcast(metrics_tensor, src=0)
+                self.logger("Broacasted")
+                metrics = dict(zip(metrics.keys(), metrics_tensor.tolist()))
             return metrics
         
-        if self.world_size > 1:
-            dist.barrier() # wait for rank 0 to complete evaluation
+        else:
+            if self.world_size > 1:
+                metrics_tensor = torch.zeros(len(self.train_metrics), dtype=torch.float32).to(self.rank)
+                self.logger("Waiting for main rank 0 to broadcast")
+                dist.broadcast(metrics_tensor, src=0)
+                self.logger("Metric tensors received")
+                metrics = dict(zip(self.train_metrics.keys(), metrics_tensor.tolist()))
+                return metrics
         return {}
     
     @torch.no_grad
@@ -337,7 +350,7 @@ class Trainer:
             all_labels = []
             
 
-            for batch in tqdm(self.train_dl, desc="[Rank: {self.rank}] - [Train] - Evaluating"):
+            for batch in tqdm(self.train_dl, desc=f"[Rank: {self.rank}] - [Train] - Evaluating"):
                 
                 input_ids, valid_lengths, labels = batch
 
@@ -346,8 +359,6 @@ class Trainer:
                     valid_lens= valid_lengths
                 )
                 
-               
-
                 preds = torch.argmax(outputs, dim=-1)
                 all_preds.extend(preds.detach().cpu().numpy())
                 all_labels.extend(labels.detach().cpu().numpy())
@@ -357,10 +368,26 @@ class Trainer:
             if self.ema:
                 self.ema.restore()
             
+            if self.world_size > 1:
+                metrics_tensor = torch.tensor(
+                    list(metrics.values()), dtype=torch.float32
+                ).to(self.rank)
+                self.logger("Broadcasting")
+                dist.broadcast(metrics_tensor, src=0)
+                self.logger("Broacasted")
+                metrics = dict(zip(metrics.keys(), metrics_tensor.tolist()))
+            
+
             return metrics
         
-        if self.world_size > 1:
-            dist.barrier() # wait for rank 0 to complete evaluation
+        else:
+            if self.world_size > 1:
+                metrics_tensor = torch.zeros(len(self.train_metrics), dtype=torch.float32).to(self.rank)
+                self.logger("Waiting for main rank 0 to broadcast")
+                dist.broadcast(metrics_tensor, src=0)
+                self.logger("Metric tensors received")
+                metrics = dict(zip(self.train_metrics.keys(), metrics_tensor.tolist()))
+                return metrics
         return {}
     
 
@@ -398,14 +425,17 @@ class Trainer:
                 metrics_val = self.evaluate_valid()
                 metrics_train = self.evaluate_train()
 
+                self.logger(f"Metric val keys: {metrics_val.keys()} - value : {metrics_val.values()}")
+                self.logger(f"Metric train keys: {metrics_train.keys()} - value : {metrics_train.values()}")
 
-                if metrics_val:
-                    self.val_metrics['loss'].update(metrics_val['valid_loss'])
+
+                if metrics_val.get('loss', None) is not None:
+                    self.val_metrics['loss'].update(metrics_val['loss'])
                     self.val_metrics['precision'].update(metrics_val['precision'])
                     self.val_metrics['recall'].update(metrics_val['recall'])
                     self.val_metrics['f1_score'].update(metrics_val['f1_score'])
                 
-                if metrics_train:
+                if metrics_train.get('loss', None) is not None:
                     self.train_metrics['loss'].update(loss)
                     self.train_metrics['precision'].update(metrics_train['precision'])
                     self.train_metrics['recall'].update(metrics_train['recall'])
@@ -440,12 +470,14 @@ class Trainer:
                     return
 
             if self.awp and epoch >= self.config.awp.awp_trigger_epoch:
+                self.logger("AWP...")
                 self.awp.attack_backward(
                     {"input_ids": input_ids, "valid_lengths": valid_lengths, "labels": labels}, 
                     self.accelerator
                 )
             
             if (step + 1) % self.config.train_params.grad_accumulation == 0:
+                self.logger("Gradient calculation and updating...")
                 torch.nn.utils.clip_grad_norm_(
                     self.model.parameters(),
                     self.config.optimizer.grad_clip_value
@@ -453,13 +485,14 @@ class Trainer:
                 self.optimizer.step()
                 self.scheduler.step()
                 self.optimizer.zero_grad()
-
+                self.logger("before ema")
                 if self.ema:
                     self.ema.update()
+                    self.logger("after ema")
             
-            progress_bar.update(1)
             if (step + 1) % self.config.train_params.print_gpu_stats_each_steps == 0:
                 log_gpu_metrics()
+            progress_bar.update(1)
             
         
         progress_bar.close()
@@ -478,13 +511,12 @@ class Trainer:
                 "metrics": metrics
             }
 
-            checkpoint_name = (
-                f"checkpoint_epoch{epoch+1}_step{step+1}_",
-                f"f1_{metrics['f1_score']:.4f}.pt"           
-            )
+            checkpoint_name = f"checkpoint_epoch{epoch+1}_step{step+1}_f1_{metrics['f1_score']:.4f}.pt"
+            checkpoint_path = self.config.dataset.checkpoints
+            os.makedirs(checkpoint_path, exist_ok=True)
             torch.save(
                 checkpoint,
-                os.path.join("checkpoints", checkpoint_name)
+                os.path.join(checkpoint_path, checkpoint_name)
             )
             self.logger(f"Saved checkpoint: {checkpoint_name}")
         
@@ -523,4 +555,3 @@ def train_process(rank: int, world_size: int, config: OmegaConf):
         raise e
     finally:
         cleanup_processes()
-    
