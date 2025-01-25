@@ -138,8 +138,6 @@ def get_lr(optimizer: torch.optim.Optimizer) -> float:
 
 
 class AverageMeter:
-    
-    
     def __init__(self) -> None:
         self.reset()
         self.history = []

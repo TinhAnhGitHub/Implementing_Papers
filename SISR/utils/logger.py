@@ -2,20 +2,16 @@ import logging
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 import os
-from omegaconf import OmegaConf
 from rich.console import Console
 from rich.logging import RichHandler
 
-from utils import init_wandb
+
 
 class Logger:
-    def __init__(self, log_dir: str, rank: int, config: OmegaConf):
+    def __init__(self, log_dir: str, rank: int):
         self.logger = self.setup_logging(log_dir)
         self.rank = rank
-        self.console = Console()  
-        if config.use_wandb:  
-            cfg_dict = OmegaConf.to_container(config, resolve=True)  
-            init_wandb(cfg_dict)  
+        self.console = Console()   
 
     def setup_logging(self, log_dir: str) -> logging.Logger:
         if not os.path.exists(log_dir):

@@ -1,0 +1,187 @@
+core:
+  seed: 3407
+  experiment_name: project_SISR
+  project_dir: unet_sisr
+  run_name: run_${now:%Y%m%d_%H%M%S}
+  device: cuda
+  deterministic: false
+  precision: fp32
+  enable_benchmarking: true
+data:
+  paths:
+    train: data/train
+    val: data/val
+  loaders:
+    num_workers: 4
+    pin_memory: true
+    persistent_workers: true
+  batch_size:
+    train: 32
+    val: 32
+  normalization:
+    mean:
+    - 0.485
+    - 0.456
+    - 0.406
+    std:
+    - 0.229
+    - 0.224
+    - 0.225
+  preprocessing:
+    resize:
+    - 1024
+    - 644
+model:
+  architecture: unet
+  input_channels: 3
+  num_classes: 3
+  use_norm: true
+  use_act: true
+  use_dropout: true
+  act_type: LeakyReLU
+  norm_type: BatchNorm2d
+  up_type: Upsample
+  up_mode: bilinear
+  dropout_probability: 0.1
+  runet:
+    features_encode:
+    - 64
+    - 128
+    - 256
+    - 512
+    features_decode:
+    - 512
+    - 512
+    - 384
+    - 256
+    - 96
+    downsample_each_output_layer:
+    - true
+    - true
+    - true
+    - false
+    feature_initial: 64
+    feature_near_final: 96
+    num_block_each_feature:
+    - 4
+    - 4
+    - 6
+    - 2
+    double_last_blocks_each_feature:
+    - false
+    - true
+    - true
+    - true
+  unet:
+    features:
+    - 64
+    - 128
+    - 256
+    - 512
+    - 1024
+    use_skip: true
+training:
+  num_epochs: 50
+  gradient_accumulation_steps: 1
+  lr_scheduler:
+    name: onecyclelr
+    warmup_epochs: 5
+    warmup_momentum: 0.8
+    warmup_bias_lr: 0.1
+    min_lr: 1.0e-06
+    cycle_momentum: true
+  loss:
+    use_feature_loss: true
+    feature_model: vgg19
+    feature_layer: features.35
+optimizer:
+  name: adamw
+  lr: 0.001
+  weight_decay: 1.0e-05
+  momentum: 0.9037
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+  grad_clip:
+    enable: true
+    max_norm: 1.0
+    norm_type: 2.0
+augmentation:
+  color:
+    brightness: 0.015
+    contrast: 0.7
+    saturation: 0.4
+    hue: 0.0
+  geometric:
+    degrees: 0.0
+    translate: 0.1
+    scale: 0.5
+    shear: 0.0
+    perspective: 0.0
+    flipud_prob: 0.0
+    fliplr_prob: 0.5
+  regularization:
+    erasing_prob: 0.4
+    crop_fraction: 1.0
+logging:
+  refresh_rate: 10
+  log_dir: ${core.project_dir}/${core.experiment_name}/${core.run_name}/logs
+metrics:
+  train:
+  - loss
+  - ssim
+  - psnr
+  val:
+  - loss
+  - ssim
+  - psnr
+callbacks:
+  modelckpt:
+    enable: true
+    prefixfilename: ${core.project_dir}/${core.experiment_name}/${core.run_name}/checkpoints/best_model_${model.architecture}
+    save_on_epoch: true
+    num_epoch_save: 3
+    max_keeps: 3
+    keep_condition: val_ssim
+    mode: max
+  wandb:
+    enabled: true
+    project: my_project
+    dir: ${core.project_dir}/${core.experiment_name}/${core.run_name}/wandb_log
+    id: v0.1
+    name: ${core.run_name}
+    notes: Just a pipeline testing
+    tags:
+    - SISR
+    log_train_metrics: true
+    log_val_metrics: true
+    log_grad_norm: true
+  early_stopping:
+    enable: true
+    patience: 10
+    monitor: val_loss
+    mode: min
+  awp:
+    enabled: true
+    adv_lr: 0.0001
+    adv_eps: 0.001
+    adv_param: weight
+  ema:
+    enabled: true
+    decay: 0.999
+  swa:
+    enabled: true
+    swa_start: 10
+    swa_freq: 5
+    swa_lr: 0.05
+  timer:
+    enable: true
+  apply_communication_hook_compression:
+    enable: true
+    type: fp16
+  visualization:
+    enable: true
+    output_dir: ${core.project_dir}/${core.experiment_name}/${core.run_name}/visualizations
+    save_examples: true
+    num_examples: 5

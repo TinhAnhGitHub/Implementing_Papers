@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from .components import ConvLayer
 from .components import ActivationHandler, NormalizationHandler, UpsampleHandler
+from data import FeatureExtractor
 
 class ResidualBlock(nn.Module):
     def __init__(       
@@ -460,6 +461,8 @@ class RUNet(nn.Module):
             layer_order=['conv']
         )
 
+        self.feat_ex = FeatureExtractor()
+
     def forward(self, x:torch.Tensor) -> torch.Tensor:
 
         print(f"Input shape: {x.shape}")
@@ -526,7 +529,9 @@ class RUNet(nn.Module):
 
         output = self.output(output_before_final)
         print(f"Output shape: {output.shape}")
-        return output
+
+        output_feat = self.feat_ex(output.unsqueeze(0)).squeeze(0)
+        return output, output_feat
 
     def __str__(self) -> str:
         model_str = "RUNet Architecture:\n"

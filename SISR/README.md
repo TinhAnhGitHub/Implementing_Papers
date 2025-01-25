@@ -1,13 +1,14 @@
 # Goals
-- [ ] Unet Architecture with skip and no skip connection
-- [ ] (Optional) Implement RUNET Architecture
+- [x] Unet Architecture with skip and no skip connection
+- [x] (Optional) Implement RUNET Architecture
 - [ ] Define pipeline architecture: Appropriate design patterns
-    - [ ] Logging: 
-    - [ ] Metric 
-    - [ ] Distributed Data Parallel Training with pytorch
-    - [ ] ArgParser Configuration
-    - [ ] Default YAML model config
-    - [ ] Gradient Accumulation, learning rate scheduler, AWP, SWA, EMA
+    - [x] Logging
+    - [x] Metric 
+    - [x] Distributed Data Parallel Training with pytorch
+    - [x] OmegaConf Configuration
+    - [x] Default YAML model config
+    - [x] Gradient Accumulation, learning rate scheduler, AWP, SWA, EMA
     - [ ] Utilizing profiler, DeviceStatsMonitor, EarlyStopping, GradientAccumulationScheduler, LearningRateMonitor, ModelCheckpoint, ModelPruning,RichModelSummary, RichProgressBar, ThroughputMonitor, Timer, AdvancedProfiler(python cProfiler, PyTorchProfiler), seed, ...,warnings, FLOPS, Gradient Synchronization
+    - [x] Visualization and monotoring
     
-    - [ ] Optimization with joblib, Accelerator 
+    - [x] Optimization with Accelerator 
