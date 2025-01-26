@@ -10,7 +10,8 @@ from accelerate import Accelerator
 
 from dataclasses import dataclass
 from tqdm.auto import tqdm
-
+import psutil
+import GPUtil
 from data import  SuperResolutionDataset, SuperResolutionTransform, create_datasets
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
@@ -104,7 +105,6 @@ class Trainer:
         self.val_metrics = MetricCollection(config=self.config, metric_type="val")
         self._setup_ddp()
 
-        print("Before trigger event on_pretrain_routine_start")
         self.callback_manager.trigger_event("on_pretrain_routine_start", trainer=self)
 
         self.model, self.optimizer, self.train_loader, self.val_loader = self.accelerator.prepare(
@@ -195,6 +195,24 @@ class Trainer:
         self.callback_manager.trigger_event("on_train_end", trainer=self)
     
 
+    def _get_process_info(self) -> Dict:
+        cpu_percent = psutil.cpu_percent()
+        ram_percent = psutil.virtual_memory().percent
+        gpu_usage = []
+        if GPUtil.getGPUs():
+            for gpu in GPUtil.getGPUs():
+                gpu_usage.append(f"{gpu.name}: {gpu.load*100:.2f}%")
+            gpu_info = ", ".join(gpu_usage)
+        else:
+            gpu_info = "No GPU"
+        info = {
+           "Loss": f"{self.batch_cur_loss:.4f}" if self.batch_cur_loss is not None else "N/A",
+            "CPU": f"{cpu_percent:.1f}%",
+            "RAM": f"{ram_percent:.1f}%",
+            "GPU": gpu_info,
+        }
+        return info
+    
     def _train_epoch(self, epoch:int) -> None:
         self.model.train()
         self.train_metrics.reset()
@@ -216,7 +234,7 @@ class Trainer:
                     self.batch_cur_loss = loss
                     self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
                     pbar.set_postfix(
-                        self._get_progress_info()
+                        self._get_process_info()
                     )
                     pbar.update()
 
@@ -265,8 +283,8 @@ class Trainer:
         outputs, output_feat = self.model(lr_images)
 
         loss = self.criterion(
-            outputs=outputs,
-            targets=hr_images,
+            sr=outputs,
+            hr=hr_images,
             lr_features=output_feat,  
             hr_features=batch.get("hr_features")   
         )
@@ -330,13 +348,21 @@ class Trainer:
         self.val_metrics.reset()
         
         if self.rank == 0:
+            total_batches = len(self.val_loader)
             with torch.no_grad():
-                for _, batch in enumerate(self.val_loader):
-                    self.callback_manager.trigger_event(
-                    "on_val_batch_start",
-                    trainer=self
-                )
-                self._validation_step(batch)
+               with tqdm(
+                    total=total_batches,
+                    desc=f"Validation {self.state.current_epoch+1}/{self.config.training.num_epochs}",
+                    unit="batch",
+                    leave=True,
+                ) as pbar:
+                    for _, batch in enumerate(self.val_loader):
+                        self.callback_manager.trigger_event(
+                            "on_val_batch_start",
+                            trainer=self
+                        )
+                        self._validation_step(batch)
+                        pbar.update()
         
         self._log_validation_results()
         self.callback_manager.trigger_event("on_val_end", trainer=self)

@@ -170,6 +170,14 @@ class PatchLoss(nn.Module):
         weight_loss = (distance*attention).sum()
         return weight_loss
 
+    def _move_kernels_to_device(self, device):
+        for kernel in self.image_kernels:
+             kernel.weight.data = kernel.weight.to(device)
+             kernel.bias.data = kernel.bias.to(device)
+        for kernel in self.feature_kernels:
+             kernel.weight.data = kernel.weight.to(device)
+             kernel.bias.data = kernel.bias.to(device)
+
     def forward(
         self,
         sr:torch.Tensor,
@@ -189,6 +197,7 @@ class PatchLoss(nn.Module):
         Returns:
             Total loss value
         """        
+        self._move_kernels_to_device(sr.device)
         sr_y = 16. + (65.481 * sr[:, 0] + 128.553 * sr[:, 1] + 24.966 * sr[:, 2])/255.
         hr_y = 16. + (65.481 * hr[:, 0] + 128.553 * hr[:, 1] + 24.966 * hr[:, 2])/255.
         sr_y = sr_y.unsqueeze(1)

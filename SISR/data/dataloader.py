@@ -38,20 +38,21 @@ class SuperResolutionDataset(Dataset):
     def __init__(
         self,
         image_files,
+        img_dir,
         transform: Optional[callable] = None,
         is_train: bool = True,
         scale_factor: int = 4,
         use_feature_loss: bool = False,
-        feature_model: Optional[str] = "vgg19",
         feature_layer: Optional[str] = "features.35"
     ):
         self.transform = transform
         self.is_train = is_train
         self.scale_factor = scale_factor
         self.image_files = image_files
+        self.img_dir = img_dir
         self.use_feature_loss = use_feature_loss
         if use_feature_loss:
-            self.feature_extractor = FeatureExtractor(model_name=feature_model, layer_name=feature_layer)
+            self.feature_extractor = FeatureExtractor(layer_name=feature_layer)
         else:
             self.feature_extractor = None
     
@@ -125,7 +126,6 @@ def create_datasets(
             is_train=True,
             scale_factor=config.data.scale_factor,
             use_feature_loss=config.training.loss.use_feature_loss,
-            feature_model=config.training.loss.feature_model,
             feature_layer=config.training.loss.feature_layer,
         )
         val_dataset = SuperResolutionDataset(
@@ -135,7 +135,6 @@ def create_datasets(
             is_train=False,
             scale_factor=config.data.scale_factor,
             use_feature_loss=config.training.loss.use_feature_loss,
-             feature_model=config.training.loss.feature_model,
             feature_layer=config.training.loss.feature_layer,
         )
     else:
@@ -146,7 +145,6 @@ def create_datasets(
             is_train=True,
             scale_factor=config.data.scale_factor,
             use_feature_loss=config.training.loss.use_feature_loss,
-             feature_model=config.training.loss.feature_model,
             feature_layer=config.training.loss.feature_layer,
         )
         val_dataset = None

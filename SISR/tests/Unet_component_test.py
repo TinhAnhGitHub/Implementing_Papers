@@ -131,10 +131,10 @@ class TestUnetArchitecture(unittest.TestCase):
    
 
     def test_no_skip_connections(self):
-        model = UNet(in_channels=3, num_classes=3, use_skip=True)
+        model = UNet(in_channels=3, num_classes=3, use_skip=False)
         x = torch.rand(1, 3, 1024, 1024)
         output, x_feat = model(x)
         self.assertEqual(output.shape, torch.Size([1, 3, 1024, 1024]))
-        self.assertEqual(x_feat.shape, torch.Size([1, 512, 2,2]))
+        self.assertEqual(x_feat.shape, torch.Size([1, 512, 32,32]))
 if __name__ == "__main__":
     unittest.main()
