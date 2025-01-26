@@ -45,7 +45,6 @@ class PatchKernel(nn.Module):
             and P is patch_size
         """
         batch_size = x.size(0)
-        print(x.shape)
         patches = F.conv2d(
             x, self.weight, self.bias, 
             stride=self.stride, 

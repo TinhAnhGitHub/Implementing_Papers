@@ -152,7 +152,6 @@ class UpBlock(nn.Module):
         )
         self.layers = nn.Sequential(*layers)
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        print(x.shape)
         x = self.layers(x)
        
         x = self.up(x)

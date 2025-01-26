@@ -266,9 +266,9 @@ class Trainer:
 
         
         metrics = {
-            "Loss": loss.item(),
-            "PSNR": (outputs.cpu().detach(), batch['hr_image']),
-            "SSIM": (outputs.cpu().detach(), batch['hr_image'])
+            "loss": loss.item(),
+            "psnr": (outputs.cpu().detach(), batch['hr_image']),
+            "ssim": (outputs.cpu().detach(), batch['hr_image'])
         }
         self.train_metrics.update(metrics)
         return loss
@@ -388,9 +388,9 @@ class Trainer:
         )
         with torch.no_grad():
             metrics = {
-                "Loss": loss.item(),
-                "PSNR": (outputs, batch['hr_image']),
-                "SSIM": (outputs, batch['hr_image'])
+                "loss": loss.item(),
+                "psnr": (outputs, batch['hr_image']),
+                "ssim": (outputs, batch['hr_image'])
             }
             self.val_metrics.update(metrics)
         
