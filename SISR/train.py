@@ -9,24 +9,13 @@ from omegaconf import DictConfig
 from accelerate import Accelerator
 
 from dataclasses import dataclass
-
-
 from tqdm.auto import tqdm
 
-import psutil
-import GPUtil
-
-
-from data import  SuperResolutionDataset, SuperResolutionTransform
+from data import  SuperResolutionDataset, SuperResolutionTransform, create_datasets
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
 from utils import PatchLoss, MetricCollection
 from utils import  create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes
-
-
-
-
-
 
 
 
@@ -130,26 +119,13 @@ class Trainer:
 
     def _load_data(self) -> None:
         """Initialize data loaders"""
-        train_dataset = self._create_dataset(is_train=True)
-        val_dataset = self._create_dataset(is_train=False) if self.config.data.paths.val else None
+        train_dataset, val_dataset = create_datasets(self.config)
 
         self.train_loader = self._create_train_loader(train_dataset)
         self.val_loader = self._create_val_loader(val_dataset)
 
         self.train_loader, self.val_loader = self.accelerator.prepare(
             self.train_loader, self.val_loader
-        )
-
-    def _create_dataset(self, is_train: bool) -> SuperResolutionDataset:
-        return SuperResolutionDataset(
-            config = self.config,
-            img_dir=self.config.data.paths.train if is_train else self.config.data.paths.val,
-            transform=self.transforms.get_train_transform() if is_train else self.transforms.get_val_transform(),
-            is_train=is_train,
-            scale_factor=self.config.data.scale_factor,
-            use_feature_loss=self.config.training.loss.use_feature_loss,
-            feature_model=self.config.training.loss.feature_model,
-            feature_layer=self.config.training.loss.feature_layer
         )
 
     def _create_train_loader(self, dataset: SuperResolutionDataset) -> DataLoader:
@@ -174,7 +150,6 @@ class Trainer:
         )
 
     def _create_val_loader(self, dataset: Optional[SuperResolutionDataset]) -> Optional[DataLoader]:
-        """Create validation data loader"""
         if dataset is None:
             return None
         return DataLoader(
@@ -214,11 +189,8 @@ class Trainer:
             
             if self.state.early_stop:
                 break
-            
+    
             self.callback_manager.trigger_event("on_train_epoch_end", trainer=self)
-
-
-
 
         self.callback_manager.trigger_event("on_train_end", trainer=self)
     
@@ -228,28 +200,40 @@ class Trainer:
         self.train_metrics.reset()
 
         total_batches = len(self.train_loader)
-        with tqdm(
-                total=total_batches,
-                desc=f"Epoch {epoch + 1}/{self.config.training.num_epochs}",
-                unit="batch",
-                leave=True, 
-                disable=not self.accelerator.is_main_process,
-        ) as pbar:
-          for batch_idx, batch in enumerate(self.train_loader):
-            self.state.global_step = batch_idx
-            self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
+        if self.rank == 0:
+            with tqdm(
+                    total=total_batches,
+                    desc=f"Epoch {epoch + 1}/{self.config.training.num_epochs}",
+                    unit="batch",
+                    leave=True,
+            ) as pbar:
+              for batch_idx, batch in enumerate(self.train_loader):
+                self.state.global_step = batch_idx
+                self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
 
-            with self.accelerator.accumulate(self.model):
-                loss = self._train_step(batch)
-                self.batch_cur_loss = loss
-                self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
-                pbar.set_postfix(
-                    self._get_progress_info()
-                )
-                pbar.update()
-            
-            if batch_idx % self.config.logging.interval == 0: 
-                self._log_training_metrics()
+                with self.accelerator.accumulate(self.model):
+                    loss = self._train_step(batch)
+                    self.batch_cur_loss = loss
+                    self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
+                    pbar.set_postfix(
+                        self._get_progress_info()
+                    )
+                    pbar.update()
+
+                if batch_idx % self.config.logging.interval == 0:
+                    self._log_training_metrics()
+        else:
+            for batch_idx, batch in enumerate(self.train_loader):
+                self.state.global_step = batch_idx
+                self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
+
+                with self.accelerator.accumulate(self.model):
+                    loss = self._train_step(batch)
+                    self.batch_cur_loss = loss
+                    self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
+
+                if batch_idx % self.config.logging.interval == 0:
+                    self._log_training_metrics()
     
     def _train_step(self, batch: Dict[str, Tensor]):
 

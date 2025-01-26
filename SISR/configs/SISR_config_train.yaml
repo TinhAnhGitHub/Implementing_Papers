@@ -1,4 +1,3 @@
-# %%writefile /kaggle/working/Implementing_Papers/SISR/configs/SISR_config_train_1.yaml
 # config/trainer_config.yaml
 # Core Configuration
 
@@ -8,7 +7,7 @@ core:
   experiment_name: "project_SISR"
   project_dir: "unet_sisr"  
   run_name: "run_test_1"  
-  device: "cpu"
+  device: "cuda"
   deterministic: False
   precision: "fp32"  # Options: fp16, b16
   enable_benchmarking: True
@@ -16,9 +15,8 @@ core:
 
 # Data Configuration
 data:
-  paths:
-    train: "./notebooks/train"
-    val: "./notebooks/val"
+  path: "/kaggle/..."
+  val_size: 0.2
 
   loaders:
     num_workers: 2
@@ -26,8 +24,8 @@ data:
     persistent_workers: True
 
   batch_size:
-    train: 1
-    val: 1
+    train: 2
+    val: 2
 
   normalization:
     mean: [0.485, 0.456, 0.406]  
@@ -35,10 +33,10 @@ data:
 
   preprocessing:
     resize: [1024, 644]
-  
+
   scale_factor: 4
-  
-loss_config:
+
+patch_loss_config:
   image_patch_sizes: [3,5,7]
   feature_patch_sizes: [3,5,7]
   eps: 1e-8
@@ -71,7 +69,7 @@ model:
 
 training:
   num_epochs: 10
-  gradient_accumulation_steps: 2
+  gradient_accumulation_steps: 5
   
   lr_scheduler:
     name: "onecyclelr"
@@ -85,7 +83,6 @@ training:
     use_feature_loss: True
     feature_model: "vgg19"  # Options: vgg19, resnet50
     feature_layer: "features.35"
-  
 
 
 # Optimizer Configuration
@@ -129,10 +126,6 @@ logging:
   refresh_rate: 10
   log_dir: "${core.project_dir}/${core.experiment_name}/${core.run_name}/logs"
 
-  
-
-
-
 metrics:
   train: ["loss", "ssim", "psnr"]
   val: ["loss", "ssim", "psnr"]
@@ -140,7 +133,7 @@ metrics:
 
 callbacks:
   modelckpt:
-    enable: True
+    enabled: True
     prefixfilename: "${core.project_dir}/${core.experiment_name}/${core.run_name}/checkpoints/best_model_${model.architecture}"
     save_on_epoch: True
     num_epoch_save: 3
@@ -161,7 +154,7 @@ callbacks:
     log_grad_norm: True
 
   early_stopping:
-    enable: True
+    enabled: True
     patience: 10
     monitor: "val_loss" 
     mode: "min"
@@ -183,13 +176,13 @@ callbacks:
     swa_lr: 0.05 
 
   timer:
-    enable: True
+    enabled: True
   
   communication_hook_ddp:
-    enable: True  
+    enabled: True  
     type: "fp16" # bf16, powersgd
   
 
   visualization:
-    enable: True
+    enabled: True
     output_dir: "${core.project_dir}/${core.experiment_name}/${core.run_name}/visualizations"
