@@ -7,12 +7,12 @@ defaults:
 
 # Core Configuration
 
-config_name: "SISR_config_train"
+config_name: "SISR_config_train_test"
 core:
   seed: 3407
   experiment_name: "project_SISR"
   project_dir: "unet_sisr"  
-  run_name: "run_${now:%Y%m%d_%H%M%S}"  
+  run_name: "run_test_1"  
   device: "cuda"
   deterministic: False
   precision: "fp32"  # Options: fp16, b16
@@ -22,17 +22,17 @@ core:
 # Data Configuration
 data:
   paths:
-    train: "data/train"
-    val: "data/val"
+    train: "/kaggle/working/train"
+    val: "/kaggle/working/test"
 
   loaders:
-    num_workers: 4
+    num_workers: 2
     pin_memory: true
     persistent_workers: True
 
   batch_size:
-    train: 32
-    val: 32
+    train: 1
+    val: 1
 
   normalization:
     mean: [0.485, 0.456, 0.406]  
@@ -69,10 +69,9 @@ model:
     features: [64, 128, 256, 512, 1024]
     use_skip: True
 
-# Training Configuration
 training:
-  num_epochs: 50
-  gradient_accumulation_steps: 1
+  num_epochs: 10
+  gradient_accumulation_steps: 2
   
   lr_scheduler:
     name: "onecyclelr"
@@ -126,8 +125,8 @@ augmentation:
 
 
 logging:
-    refresh_rate: 10
-    log_dir: "${core.project_dir}/${core.experiment_name}/${core.run_name}/logs"
+  refresh_rate: 10
+  log_dir: "${core.project_dir}/${core.experiment_name}/${core.run_name}/logs"
 
   
 
@@ -184,8 +183,6 @@ callbacks:
 
   timer:
     enable: True
-
-
   
   apply_communication_hook_compression:
     enable: True  
@@ -195,5 +192,3 @@ callbacks:
   visualization:
     enable: True
     output_dir: "${core.project_dir}/${core.experiment_name}/${core.run_name}/visualizations"
-    save_examples: True
-    num_examples: 5  

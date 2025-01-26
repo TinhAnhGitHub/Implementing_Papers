@@ -1,7 +1,7 @@
-import hydra
 from omegaconf import DictConfig, OmegaConf
 import torch.multiprocessing as mp
 import torch
+import argparse
 from train import train_process
 # from prediction import predict_process 
 from utils import cleanup_processes, init_wandb
@@ -14,10 +14,8 @@ def get_pipeline_type(config_name: str) -> str:
         return 'predict'
     raise ValueError(f"Invalid config name {config_name} - must contain 'train' or 'predict'")
 
-@hydra.main(version_base="1.1", config_path="configs", config_name="SISR_config_train")
 def main(cfg: DictConfig) -> None:
 
-    print(OmegaConf.to_yaml(cfg))
     pipeline_type = get_pipeline_type(cfg.get('config_name', 'configs'))
     wandb_config = cfg.callbacks.wandb
     if cfg.callbacks.wandb.enabled:
@@ -48,5 +46,12 @@ def main_ddp(world_size: int, cfg: DictConfig) -> None:
         join=True
     )
 
+
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run the pipeline with OmegaConf")
+    parser.add_argument("--config_path", type=str, required=True, help="Path to the configuration YAML file.")
+    args = parser.parse_args()
+
+    cfg = OmegaConf.load(args.config_path)
+    main(cfg)
