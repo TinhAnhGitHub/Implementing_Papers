@@ -267,11 +267,10 @@ class TestRUnet(unittest.TestCase):
             double_last_blocks_each_feature=[True, True, True, True],
         )
         x = torch.rand(1, 3, 256, 256)  
-        print("Model structure:")
-        print(model)
-        output = model(x)
+        output, feat_ex = model(x)
         print(f"Output shape: {output.shape}")
         self.assertEqual(output.shape, torch.Size([1, 3, 256, 256]))
+        self.assertEqual(feat_ex.shape, torch.Size([1, 512, 8, 8]))
     
 
 

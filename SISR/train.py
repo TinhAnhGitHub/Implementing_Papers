@@ -198,15 +198,11 @@ class Trainer:
         self.callback_manager.trigger_event("on_train_start", trainer=self)
 
         
-        self.progress_bar = self._setup_progress_bar()
-        self.progress_bar.start()
 
-
-        print("starting to train")
         for epoch in range(self.state.current_epoch, self.config.training.num_epochs):
             self.state.current_epoch = epoch
             self.callback_manager.trigger_event("on_train_epoch_start", trainer=self)
-            self.epoch_start = self.progress_bar.add_task(f"Epoch {self.state.current_epoch+1}", total=len(self.train_loader))
+            
 
             if self.rank == 0:
                 self.logger.log("before train epoch")
@@ -220,7 +216,6 @@ class Trainer:
                 break
             
             self.callback_manager.trigger_event("on_train_epoch_end", trainer=self)
-            self.progress_bar.remove_task(self.epoch_task)
 
 
 
@@ -237,7 +232,7 @@ class Trainer:
                 total=total_batches,
                 desc=f"Epoch {epoch + 1}/{self.config.training.num_epochs}",
                 unit="batch",
-                leave=True,
+                leave=True, 
                 disable=not self.accelerator.is_main_process,
         ) as pbar:
           for batch_idx, batch in enumerate(self.train_loader):
@@ -293,11 +288,12 @@ class Trainer:
         )
         
         if torch.isnan(loss) or torch.isinf(loss):
-            self.logger.log(
-                f"Warning: Loss is {loss.item()}, skipping batch",
-                level="WARNING"
-            )
-            raise ValueError("Loss is NaN or Inf")
+            if self.rank == 0:
+                self.logger.log(
+                    f"Warning: Loss is {loss.item()}, skipping batch",
+                    level="WARNING"
+                )
+                raise ValueError("Loss is NaN or Inf")
         return outputs, loss
     
 
@@ -308,14 +304,15 @@ class Trainer:
                 f"{k:<20} {v['current']:<15.4f} {v.get('mean', 'N/A'):<15.4f} {v.get('std', 'N/A'):<15.4f}"
                 for k, v in metrics_summary.items()
             )
-            self.logger.log(
-                f"""
-                Training Metrics Summary:
-                {'Metric Name':<20} {'Current Value':<15} {'Mean Value':<15} {'Std Dev':<15}
-                {'-' * 65}
-                {table_rows}
-                """
-            )
+            if self.rank == 0:
+                self.logger.log(
+                    f"""
+                    Training Metrics Summary:
+                    {'Metric Name':<20} {'Current Value':<15} {'Mean Value':<15} {'Std Dev':<15}
+                    {'-' * 65}
+                    {table_rows}
+                    """
+                )
 
     def _backward_pass(
         self, loss: Tensor
@@ -408,8 +405,9 @@ class Trainer:
                     f"  Mean: {metric_values.get('mean', 'N/A'):.4f}\n"
                     f"  Std: {metric_values.get('std', 'N/A'):.4f}\n"
                 )    
-            
-            self.logger.log(log_message)
+            if self.rank == 0:
+
+                self.logger.log(log_message)
 
 
 

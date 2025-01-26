@@ -1,8 +1,13 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from typing import List, Optional
 import torch
 import torch.nn as nn
 from .components import ConvLayer
 from .components import ActivationHandler, NormalizationHandler, UpsampleHandler
+
 from data import FeatureExtractor
 
 class ResidualBlock(nn.Module):
@@ -465,12 +470,9 @@ class RUNet(nn.Module):
 
     def forward(self, x:torch.Tensor) -> torch.Tensor:
 
-        print(f"Input shape: {x.shape}")
         x = self.input(x)
-        print(f"After input layer: {x.shape}")
         output_layer_encode_before_downsampling = [x]
         x = self.down_pooling(x)
-        print(f"After down pooling: {x.shape}")
 
         output_layer_encodes = [x]
 
@@ -482,20 +484,15 @@ class RUNet(nn.Module):
             if self.downsample_each_output_layer[i]:
                 output_layer_encode = self.down_pooling(output_layer_encode) 
             output_layer_encodes.append(output_layer_encode)
-            print(f"After encoder block {i + 1}: {output_layer_encode.shape}")
         
 
         output_bottleneck1 = self.bottle_neck1(output_layer_encodes[-1])
-        print(f"After bottleneck 1: {output_bottleneck1.shape}")
         output_bottleneck2 = self.bottle_neck2(output_bottleneck1)
-        print(f"After bottleneck 2: {output_bottleneck2.shape}")
         output_bottleneck3 = self.bottle_neck3(output_bottleneck2)
-        print(f"After bottleneck 3: {output_bottleneck3.shape}")
 
 
 
         output_addition_bottleneck13 = torch.concat([output_bottleneck1, output_bottleneck3], dim=1)
-        print(f"After concatenating bottleneck outputs: {output_addition_bottleneck13.shape}")
 
         
         output_decode_layers: List[torch.Tensor] = [] 
@@ -504,7 +501,6 @@ class RUNet(nn.Module):
                 output_decode_layer_init = layer(output_addition_bottleneck13)
             else:
                 
-                print(output_layer_encode_before_downsampling[len(output_layer_encode_before_downsampling) - i - 1].shape)
                 input_to_next_dec = torch.cat(
                     [
                         output_layer_encode_before_downsampling[len(output_layer_encode_before_downsampling) - i - 1], 
@@ -514,7 +510,6 @@ class RUNet(nn.Module):
                 dim=1)
                 output_decode_layer_init = layer(input_to_next_dec)
             output_decode_layers.append(output_decode_layer_init)
-            print(f"After decoder block {i + 1}: {output_decode_layer_init.shape}")
 
 
         output_before_final = self.before_final(
@@ -525,12 +520,10 @@ class RUNet(nn.Module):
                 ], dim=1
             )
         )
-        print(f"After before final layers: {output_before_final.shape}")
 
         output = self.output(output_before_final)
-        print(f"Output shape: {output.shape}")
 
-        output_feat = self.feat_ex(output.unsqueeze(0)).squeeze(0)
+        output_feat = self.feat_ex(output)
         return output, output_feat
 
     def __str__(self) -> str:

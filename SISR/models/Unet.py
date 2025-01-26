@@ -305,23 +305,19 @@ class UNet(nn.Module):
         """Forward pass."""
         skip_connections = []
         x = self.first_conv(x)
-        print(x.shape)
 
         for down in self.downs:
             skip_connections.append(x)
             
             x = down(x)
-            print(x.shape)
 
         
         x = self.bottleneck(x)
-        print(x.shape)
 
 
         for i, up in enumerate(self.ups):
             x = up(x, skip_connections[-(i + 1)] if self.ups[i].use_skip else None)
-            print(x.shape)
 
         x = self.final_conv(x)
-        x_feat = self.feat_ex(x.unsqueeze(0)).squeeze(0)
+        x_feat = self.feat_ex(x)
         return x, x_feat

@@ -177,10 +177,8 @@ class CallbackManager:
     def trigger_event(self, event: str, *args, **kwargs):
         if event in self.callbacks:
             for callback in self.callbacks[event]:
-                try:
-                    getattr(callback, event)(*args, **kwargs)
-                except Exception as e:
-                    print(f"Error in callback {callback.__class__.__name__}: {str(e)}")
+                getattr(callback, event)(*args, **kwargs)
+
    
 class CallbackFactory:
 
@@ -441,7 +439,8 @@ class EarlyStoppingCallback(Callback):
 
         if should_stop:
             trainer.state.early_stop = True
-            trainer.logger.log(f"Early stopping trigger since the metric [{metric_name}] is not improving anymore")
+            if trainer.rank == 0:
+                trainer.logger.log(f"Early stopping trigger since the metric [{metric_name}] is not improving anymore")
         
 
         
@@ -640,7 +639,7 @@ class TimerCallback(Callback):
 
 
     def _log_timing_start(self, trainer) -> None:
-        if trainer.accelerator.is_main_process:
+        if trainer.rank == 0:
             trainer.logger.log(
                 "Training started at: "
                 f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.start_time))}"
@@ -649,7 +648,7 @@ class TimerCallback(Callback):
     
     def _log_timing_stats(self, trainer) -> None:
         global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
-        if trainer.accelerator.is_main_process:
+        if trainer.rank == 0:
             log_str = (
                 f"Step: {global_step}, "
                 f"Avg Batch Time: {as_minutes(self.timing_stats['average_batch_time'])}, "
@@ -660,7 +659,7 @@ class TimerCallback(Callback):
         trainer.accelerator.wait_for_everyone()
     
     def _log_epoch_timing(self, trainer, epoch_time: float) -> None:
-        if trainer.accelerator.is_main_process:
+        if trainer.rank == 0:
             log_str = (
                 f"Epoch {trainer.state.current_epoch} completed in: {as_minutes(epoch_time)}"
             )
@@ -668,7 +667,7 @@ class TimerCallback(Callback):
         trainer.accelerator.wait_for_everyone()
     
     def _log_final_timing(self, trainer, total_time: float) -> None:
-        if trainer.accelerator.is_main_process:
+        if trainer.rank == 0:
             log_str = (
                 f"Training finished in: {as_minutes(total_time)}"
             )
@@ -709,13 +708,13 @@ class AWPCallback(Callback):
                 norm_grad = torch.norm(grad)
                 norm_data = torch.norm(param.detach())
             
-            if norm_grad != 0 and not torch.isnan(norm_grad):
-                
-                    limit_eps = self.adv_eps * param.detach().abs()
-                    param_min = param.data - limit_eps
-                    param_max = param.data + limit_eps
-                    param.data.add_(grad, alpha=(self.adv_lr * (norm_data + e) / (norm_grad + e)))
-                    param.data.clamp_(param_min, param_max)
+                if norm_grad != 0 and not torch.isnan(norm_grad):
+                    
+                        limit_eps = self.adv_eps * param.detach().abs()
+                        param_min = param.data - limit_eps
+                        param_max = param.data + limit_eps
+                        param.data.add_(grad, alpha=(self.adv_lr * (norm_data + e) / (norm_grad + e)))
+                        param.data.clamp_(param_min, param_max)
     
     def _save(self, trainer, params=None):
         for name, param in trainer.model.named_parameters():

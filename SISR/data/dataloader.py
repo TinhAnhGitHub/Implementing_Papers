@@ -7,36 +7,27 @@ from omegaconf import DictConfig
 import torch.nn as nn
 import torchvision.models as models
 from .transform import SuperResolutionTransform
+
+
 class FeatureExtractor(nn.Module):
-
-
-    def __init__(self, model_name: str = "vgg19", layer_name: str = "features.35"):
-        """
-        Initialize a feature extractor using a pretrained model.
+    def __init__(self, layer_name: str = "features.35"):
         
-        Args:
-            model_name (str): Name of the pretrained model ("vgg19", "resnet50", etc.).
-            layer_name (str): Name of the layer to extract features from.
-        """
         super().__init__()
         
-        if model_name.startswith("vgg"):
-            self.model = models.vgg19(pretrained=True).features
-        elif model_name.startswith("resnet"):
-            self.model = nn.Sequential(*list(models.resnet50(pretrained=True).children())[:-2])
-        else:
-            raise ValueError(f"Unsupported model: {model_name}")
-        
+       
+        self.model = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features
+
         self.layer_name = layer_name
         self.feature_model = nn.Sequential()
+
         for name, module in self.model.named_children():
             self.feature_model.add_module(name, module)
             if name == layer_name.split(".")[0]:
-                break      
+                break
 
         for param in self.model.parameters():
             param.requires_grad = False
-        
+
         self.model.eval()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
