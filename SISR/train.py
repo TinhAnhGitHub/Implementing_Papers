@@ -1,6 +1,5 @@
 """Training pipeline for Super-Resolution tasks with DDP optimization hooks."""
 from typing import Tuple, Optional,  Dict
-from pathlib import Path
 import torch
 from torch import Tensor
 
@@ -11,16 +10,8 @@ from accelerate import Accelerator
 
 from dataclasses import dataclass
 
-from rich.progress import (
-    Progress,
-    BarColumn,
-    TextColumn,
-    TimeRemainingColumn,
-    MofNCompleteColumn,
-    ProgressColumn,
-    Task
-)
-from rich.text import Text
+
+from tqdm.auto import tqdm
 
 import psutil
 import GPUtil
@@ -30,36 +21,12 @@ from data import  SuperResolutionDataset, SuperResolutionTransform
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
 from utils import PatchLoss, MetricCollection
-from utils import rank0_first, create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes
+from utils import  create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes
 
 
 
 
-class CustomInfoColumn(ProgressColumn):
-    def __init__(self, trainer: 'Trainer'):
-        self.trainer = trainer
-        self.last_lost = ""
-        super().__init__()
-    
-    def render(self, task: Task) -> Text:
-        if self.trainer.batch_cur_loss is not None:
-            self.last_loss = f"{self.trainer.batch_cur_loss:.4f}"
-    
-        cpu_percent = psutil.cpu_percent()
-        ram_percent = psutil.virtual_memory().percent
-        
-        gpu_usage = []
-        
-        for gpu in GPUtil.getGPUs():
-            gpu_usage.append(f"{gpu.name}: {gpu.load*100:.2f}%")
-        
-        gpu_info = ", ".join(gpu_usage)
 
-        info_str = (
-            f"Loss: {self.last_loss}, CPU: {cpu_percent:.1f}%, RAM: {ram_percent:.1f}%, "
-            f"GPU: {gpu_info}"
-        )
-        return Text(info_str, style="progress.percentage")
 
 
 
@@ -101,16 +68,7 @@ class Trainer:
         self._init_components()
 
     
-    def _setup_progress_bar(self) -> Progress:
-        return Progress(
-            TextColumn(
-                "[bold blue]{task.description}[/bold blue]", justify="right"
-            ),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TimeRemainingColumn(),
-            CustomInfoColumn(self)
-        )
+    
     
     def _create_accelerator(self) -> Accelerator:
         return Accelerator(
@@ -157,7 +115,7 @@ class Trainer:
         self.val_metrics = MetricCollection(config=self.config, metric_type="val")
         self._setup_ddp()
 
-        
+        print("Before trigger event on_pretrain_routine_start")
         self.callback_manager.trigger_event("on_pretrain_routine_start", trainer=self)
 
         self.model, self.optimizer, self.train_loader, self.val_loader = self.accelerator.prepare(
@@ -167,7 +125,7 @@ class Trainer:
     def _setup_ddp(self):
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[self.rank])
-            with rank0_first():
+            if self.rank == 0:
                 self.logger.log("Model wrapped in DDP")
 
     def _load_data(self) -> None:
@@ -244,13 +202,16 @@ class Trainer:
         self.progress_bar.start()
 
 
-        
+        print("starting to train")
         for epoch in range(self.state.current_epoch, self.config.training.num_epochs):
             self.state.current_epoch = epoch
             self.callback_manager.trigger_event("on_train_epoch_start", trainer=self)
             self.epoch_start = self.progress_bar.add_task(f"Epoch {self.state.current_epoch+1}", total=len(self.train_loader))
 
-            self._train_epoch()
+            if self.rank == 0:
+                self.logger.log("before train epoch")
+                
+            self._train_epoch(epoch)
 
             if self.val_loader and epoch % self.config.validation.interval == 0:
                 self._validate_epoch()
@@ -267,27 +228,33 @@ class Trainer:
         self.callback_manager.trigger_event("on_train_end", trainer=self)
     
 
-    def _train_epoch(self) -> None:
+    def _train_epoch(self, epoch:int) -> None:
         self.model.train()
         self.train_metrics.reset()
 
-        for batch_idx, batch in enumerate(self.train_loader):
+        total_batches = len(self.train_loader)
+        with tqdm(
+                total=total_batches,
+                desc=f"Epoch {epoch + 1}/{self.config.training.num_epochs}",
+                unit="batch",
+                leave=True,
+                disable=not self.accelerator.is_main_process,
+        ) as pbar:
+          for batch_idx, batch in enumerate(self.train_loader):
             self.state.global_step = batch_idx
             self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
 
             with self.accelerator.accumulate(self.model):
                 loss = self._train_step(batch)
-                
                 self.batch_cur_loss = loss
                 self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
-                self.progress_bar.update(self.epoch_task, advance=1)
-                self.state.global_step += 1
-            
+                pbar.set_postfix(
+                    self._get_progress_info()
+                )
+                pbar.update()
             
             if batch_idx % self.config.logging.interval == 0: 
                 self._log_training_metrics()
-        self.progress_bar.close()
-
     
     def _train_step(self, batch: Dict[str, Tensor]):
 
@@ -381,13 +348,14 @@ class Trainer:
         self.model.eval()
         self.val_metrics.reset()
         
-        with torch.no_grad(), rank0_first():
-            for batch_idx, batch in enumerate(self.val_loader):
-                self.callback_manager.trigger_event(
-                "on_val_batch_start",
-                trainer=self
-            )
-            self._validation_step(batch)
+        if self.rank == 0:
+            with torch.no_grad():
+                for _, batch in enumerate(self.val_loader):
+                    self.callback_manager.trigger_event(
+                    "on_val_batch_start",
+                    trainer=self
+                )
+                self._validation_step(batch)
         
         self._log_validation_results()
         self.callback_manager.trigger_event("on_val_end", trainer=self)

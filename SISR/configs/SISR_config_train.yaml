@@ -8,7 +8,7 @@ core:
   experiment_name: "project_SISR"
   project_dir: "unet_sisr"  
   run_name: "run_test_1"  
-  device: "cuda"
+  device: "cpu"
   deterministic: False
   precision: "fp32"  # Options: fp16, b16
   enable_benchmarking: True
@@ -17,8 +17,8 @@ core:
 # Data Configuration
 data:
   paths:
-    train: "/kaggle/working/train"
-    val: "/kaggle/working/test"
+    train: "./notebooks/train"
+    val: "./notebooks/val"
 
   loaders:
     num_workers: 2

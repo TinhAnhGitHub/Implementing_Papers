@@ -14,7 +14,7 @@ class SuperResolutionTransform:
 
         self.base_transform = T.Compose([
             T.ToTensor(),
-            T.Resize(self.preprocess_resize,  antialias=True)
+            T.Resize(self.preprocess_resize, antialias=True)
         ])
 
     def get_train_transform(self):
@@ -53,5 +53,5 @@ class SuperResolutionTransform:
     def get_val_transform(self):
         return T.Compose([
             self.base_transform,
-            T.Normalize(mean=self.mean, std=self.normalize_std)
+            T.Normalize(mean=self.normalize_mean, std=self.normalize_std)
         ])

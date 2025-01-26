@@ -100,19 +100,7 @@ def as_minutes(seconds: Union[int, float]) -> str:
     
     time_components.append(f"{formatted_seconds}s")
 
-    return ':'.join(time_components)
-
-
-
-@contextmanager
-def rank0_first():
-    rank = dist.get_rank()
-
-    if rank == 0:
-        yield
-    dist.barrier()
-    
-
+    return ':'.join(time_components)  
 
 def setup(rank: int, world_size: int, timeout_seconds: float = 3600):
     try:

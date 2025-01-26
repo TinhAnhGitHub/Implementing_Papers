@@ -150,10 +150,16 @@ class CallbackManager:
         self.callbacks: Dict[str, List[Callback]] = {}
 
     def add_callback(self, callback: Callback):
+        
         event_names = self._get_callback_event_names()
 
         for event_name in event_names:
-            if hasattr(callback, event_name):
+            callback_cls = type(callback)
+            base_method = getattr(Callback, event_name)
+            callback_method = getattr(callback_cls, event_name, None)
+
+            
+            if callback_method is not base_method:
                 if event_name not in self.callbacks:
                     self.callbacks[event_name] = []
                 self.callbacks[event_name].append(callback)
@@ -169,12 +175,12 @@ class CallbackManager:
         return event_names
     
     def trigger_event(self, event: str, *args, **kwargs):
-        for callback in self.callbacks:
-            try:
-                if hasattr(callback,event):
+        if event in self.callbacks:
+            for callback in self.callbacks[event]:
+                try:
                     getattr(callback, event)(*args, **kwargs)
-            except Exception as e:
-                print(f"Error in callback {callback.__class__.__name__}: {str(e)}")
+                except Exception as e:
+                    print(f"Error in callback {callback.__class__.__name__}: {str(e)}")
    
 class CallbackFactory:
 
@@ -207,7 +213,7 @@ class CallbackFactory:
 
 
         for key, value in config.items():
-            if key not in ['enable']:
+            if key not in ['enabled']:
                 params[key] = value
 
         return callback_cls(**params)
@@ -218,7 +224,7 @@ class CallbackFactory:
         if not hasattr(config, 'callbacks'):
             return manager
         for name, callback_config in config.callbacks.items():
-            if not callback_config.get('enable'):
+            if not callback_config.get('enabled'):
                 continue
             callback = cls.create_callback(name, callback_config)
             if callback:
@@ -232,7 +238,7 @@ class CallbackFactory:
 @CallbackFactory.register(name="wandb", priority=Priority.LOWEST)
 class WandbLoggerCallback(Callback):
     def __init__(self, log_train_metrics: bool = True, log_val_metrics: bool = True, log_grad_norm: bool = True, **kwargs):
-        super().__init__(kwargs)
+        super().__init__(**kwargs)
         self.log_train_metrics = log_train_metrics
         self.log_val_metrics = log_val_metrics
         self.log_grad_norm = log_grad_norm
@@ -456,6 +462,8 @@ class EMACallback(Callback):
         for name, param in trainer.model.named_parameters():
             if param.requires_grad:
                 self.shadow[name] = param.data.clone()
+
+        print("EMA is initialized!!!!")
     
     def after_forward_backward(self, trainer, params: Optional[Dict[str, Any]] = None):
         with torch.no_grad():
@@ -528,8 +536,9 @@ class CommunicationHookCallback(Callback):
     def on_pretrain_routine_start(
         self,
         trainer,
-        params: Dict[str, Any]
+        params: Dict[str, Any] = None
     ):
+        
         if not isinstance(trainer.model, DDP):
             return
 
@@ -575,7 +584,7 @@ class TimerCallback(Callback):
     def on_train_start(
         self, 
         trainer,
-        params: Optional[Dict[str, Any]]
+        params: Optional[Dict[str, Any]] = None
     ) -> None:
         self.start_time = time.time()
         self._log_timing_start(trainer)
