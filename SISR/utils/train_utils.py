@@ -107,12 +107,11 @@ def as_minutes(seconds: Union[int, float]) -> str:
 @contextmanager
 def rank0_first():
     rank = dist.get_rank()
+
     if rank == 0:
         yield
     dist.barrier()
-    if rank > 0:
-        yield
-    dist.barrier()
+    
 
 
 def setup(rank: int, world_size: int, timeout_seconds: float = 3600):

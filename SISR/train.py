@@ -42,7 +42,7 @@ class CustomInfoColumn(ProgressColumn):
         super().__init__()
     
     def render(self, task: Task) -> Text:
-        if self.trainer.batch_cur_loss:
+        if self.trainer.batch_cur_loss is not None:
             self.last_loss = f"{self.trainer.batch_cur_loss:.4f}"
     
         cpu_percent = psutil.cpu_percent()
@@ -92,12 +92,13 @@ class Trainer:
         self.accelerator =  self._create_accelerator()
         self.callback_manager = self._setup_callbacks()
 
+        self.batch_cur_loss = 0
 
         self.state = TrainerState()
 
         self._setup_env()
+        self._load_data()
         self._init_components()
-        self._register_callbacks()
 
     
     def _setup_progress_bar(self) -> Progress:
@@ -141,12 +142,13 @@ class Trainer:
         )
 
         #* Initialize the optimizer and scheduler
+        self.model = self.model.to(self.accelerator.device)
         base_lr = self.config.optimizer.lr * self.accelerator.num_processes
 
-        steps_per_epoch = (len(self.train_loader) + self.data.batch_size.train - 1) // self.data.batch_size.train
+        steps_per_epoch = (len(self.train_loader) + self.config.data.batch_size.train - 1) // self.config.data.batch_size.train
 
         self.optimizer, self.scheduler = create_optimizer_and_scheduler(
-            self.model.parameters(), self.config, base_lr, steps_per_epoch
+            self.model, self.config, base_lr, steps_per_epoch
         )
 
         #* Init loss and metric
@@ -165,7 +167,8 @@ class Trainer:
     def _setup_ddp(self):
         if self.world_size > 1:
             self.model = DDP(self.model, device_ids=[self.rank])
-            self.logger.log("Model wrapped in DDP")
+            with rank0_first():
+                self.logger.log("Model wrapped in DDP")
 
     def _load_data(self) -> None:
         """Initialize data loaders"""
@@ -183,9 +186,9 @@ class Trainer:
         return SuperResolutionDataset(
             config = self.config,
             img_dir=self.config.data.paths.train if is_train else self.config.data.paths.val,
-            transform=self.transforms.get_train_transforms() if is_train else self.transforms.get_val_transforms(),
+            transform=self.transforms.get_train_transform() if is_train else self.transforms.get_val_transform(),
             is_train=is_train,
-            scale_factor=self.config.model.scale_factor,
+            scale_factor=self.config.data.scale_factor,
             use_feature_loss=self.config.training.loss.use_feature_loss,
             feature_model=self.config.training.loss.feature_model,
             feature_layer=self.config.training.loss.feature_layer
@@ -234,16 +237,15 @@ class Trainer:
 
 
     def fit(self) -> None:
-        self._setup_env()
         self.callback_manager.trigger_event("on_train_start", trainer=self)
 
+        
         self.progress_bar = self._setup_progress_bar()
         self.progress_bar.start()
 
 
         
         for epoch in range(self.state.current_epoch, self.config.training.num_epochs):
-            
             self.state.current_epoch = epoch
             self.callback_manager.trigger_event("on_train_epoch_start", trainer=self)
             self.epoch_start = self.progress_bar.add_task(f"Epoch {self.state.current_epoch+1}", total=len(self.train_loader))
@@ -445,10 +447,6 @@ class Trainer:
 
     def _get_current_lr(self) -> float:
         return self.optimizer.param_groups[0]['lr']
-    
-
-    
-
 
 def train_process(rank: int, world_size: int, config: DictConfig):
     try:
@@ -457,7 +455,7 @@ def train_process(rank: int, world_size: int, config: DictConfig):
             rank=rank,
             world_size=world_size
         )
-        trainer.train()
+        trainer.fit()
     except Exception as e:
         print(f"Error in process: {e}")
         raise e

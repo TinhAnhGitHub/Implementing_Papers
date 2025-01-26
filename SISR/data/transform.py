@@ -6,7 +6,7 @@ class SuperResolutionTransform:
         config: dict
     ):
         self.config = config
-        self.mean = config.data.normalization.mean
+        self.normalize_mean = config.data.normalization.mean
         self.normalize_std = config.data.normalization.std
         self.preprocess_resize = config.data.preprocessing.resize
         self.aug_config  = config.augmentation
@@ -14,7 +14,7 @@ class SuperResolutionTransform:
 
         self.base_transform = T.Compose([
             T.ToTensor(),
-            T.Resize(self.preprocess_resize, antialias=True)
+            T.Resize(self.preprocess_resize,  antialias=True)
         ])
 
     def get_train_transform(self):
@@ -45,7 +45,7 @@ class SuperResolutionTransform:
             augs.append(T.RandomErasing(p=self.aug_config.regularization.erasing_prob))
         
         return T.Compose([
-            self.base_transforms,
+            self.base_transform,
             *augs,
             T.Normalize(mean=self.normalize_mean, std=self.normalize_std)
         ])

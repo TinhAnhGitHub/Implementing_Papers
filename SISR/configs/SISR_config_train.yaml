@@ -1,3 +1,4 @@
+# %%writefile /kaggle/working/Implementing_Papers/SISR/configs/SISR_config_train_1.yaml
 # config/trainer_config.yaml
 # Core Configuration
 
@@ -35,6 +36,12 @@ data:
   preprocessing:
     resize: [1024, 644]
   
+  scale_factor: 4
+  
+loss_config:
+  image_patch_sizes: [3,5,7]
+  feature_patch_sizes: [3,5,7]
+  eps: 1e-8
 
 # Model Configuration
 model:
@@ -78,6 +85,7 @@ training:
     use_feature_loss: True
     feature_model: "vgg19"  # Options: vgg19, resnet50
     feature_layer: "features.35"
+  
 
 
 # Optimizer Configuration

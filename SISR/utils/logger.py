@@ -25,7 +25,7 @@ class Logger:
         file_handler = RotatingFileHandler(log_file, maxBytes=20 * 1024 * 1024, backupCount=5)
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(
-            logging.Formatter('%(asctime)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s')
+            logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         )
         logger.addHandler(file_handler)
 
