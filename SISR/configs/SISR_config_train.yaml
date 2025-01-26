@@ -1,15 +1,9 @@
 # config/trainer_config.yaml
-
-defaults:
-  - _self_
-  - override hydra/hydra_logging: disabled
-  - override hydra/job_logging: disabled
-
 # Core Configuration
 
 config_name: "SISR_config_train_test"
+seed: 3407
 core:
-  seed: 3407
   experiment_name: "project_SISR"
   project_dir: "unet_sisr"  
   run_name: "run_test_1"  
@@ -45,7 +39,7 @@ data:
 # Model Configuration
 model:
   architecture: "unet"  # Options: unet, runet
-  input_channels: 3
+  in_channels: 3
   num_classes: 3
   use_norm: True
   use_act: True
@@ -54,7 +48,6 @@ model:
   norm_type: "BatchNorm2d"  
   up_type: "Upsample"  
   up_mode: "bilinear"
-  dropout_probability: 0.1
 
   runet:
     features_encode: [64, 128, 256, 512]
@@ -184,7 +177,7 @@ callbacks:
   timer:
     enable: True
   
-  apply_communication_hook_compression:
+  communication_hook_ddp:
     enable: True  
     type: "fp16" # bf16, powersgd
   

@@ -8,7 +8,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from omegaconf import DictConfig
 from accelerate import Accelerator
-from accelerate.utils import  ProjectConfiguration
+
 from dataclasses import dataclass
 
 from rich.progress import (
@@ -26,7 +26,7 @@ import psutil
 import GPUtil
 
 
-from data import  SuperResolutionDataset
+from data import  SuperResolutionDataset, SuperResolutionTransform
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
 from utils import PatchLoss, MetricCollection
@@ -84,7 +84,7 @@ class Trainer:
         self.rank = rank
         
 
-        self.transforms = (config)
+        self.transforms = SuperResolutionTransform(config)
         self.logger = Logger(
             log_dir=config.logging.log_dir,
             rank=self.rank

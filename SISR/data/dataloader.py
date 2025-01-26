@@ -8,6 +8,8 @@ import torch.nn as nn
 import torchvision.models as models
 from .transform import SuperResolutionTransform
 class FeatureExtractor(nn.Module):
+
+
     def __init__(self, model_name: str = "vgg19", layer_name: str = "features.35"):
         """
         Initialize a feature extractor using a pretrained model.
@@ -64,7 +66,6 @@ class SuperResolutionDataset(Dataset):
         else:
             self.feature_extractor = None
 
-        self.transform  = SuperResolutionTransform(config=config)
     
     def __len__(self):
         return len(self.image_files)
@@ -80,7 +81,7 @@ class SuperResolutionDataset(Dataset):
             self.image_files[index]
         )
         hr_image = Image.open(img_path).convert('RGB')
-        
+
         lr_size = (
             hr_image.width // self.scale_factor,
             hr_image.height // self.scale_factor

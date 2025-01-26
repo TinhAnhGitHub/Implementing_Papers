@@ -105,9 +105,7 @@ class Callback(ABC):
         """Trigger after parameter updates."""
         pass
 
-    def teardown(self, trainer: Any, params: Optional[Dict[str, Any]] = None) -> None:
-        """Trigger during resource cleanup."""
-        pass
+
 
     # Validation lifecycle hooks
     def on_val_start(self, trainer: Any, params: Optional[Dict[str, Any]] = None) -> None:
@@ -152,8 +150,23 @@ class CallbackManager:
         self.callbacks: Dict[str, List[Callback]] = {}
 
     def add_callback(self, callback: Callback):
-        self.callbacks.append(callback)
-        self.callbacks.sort(key=lambda x: x.priority.value)
+        event_names = self._get_callback_event_names()
+
+        for event_name in event_names:
+            if hasattr(callback, event_name):
+                if event_name not in self.callbacks:
+                    self.callbacks[event_name] = []
+                self.callbacks[event_name].append(callback)
+
+        for event_name in self.callbacks:
+            self.callbacks[event_name].sort(key=lambda x: x.priority.value)
+    
+    def _get_callback_event_names(self) -> Set[str]:
+        event_names = set()
+        for name, method in inspect.getmembers(Callback, inspect.isfunction):
+            if name.startswith("on_") or name.startswith("after_") or name.startswith("before_"):
+                event_names.add(name)
+        return event_names
     
     def trigger_event(self, event: str, *args, **kwargs):
         for callback in self.callbacks:
@@ -192,6 +205,7 @@ class CallbackFactory:
             'priority': cls._default_priorities.get(name.lower()),
         }
 
+
         for key, value in config.items():
             if key not in ['enable']:
                 params[key] = value
@@ -206,12 +220,10 @@ class CallbackFactory:
         for name, callback_config in config.callbacks.items():
             if not callback_config.get('enable'):
                 continue
-            try:
-                callback = cls.create_callback(name, callback_config)
-                if callback:
-                    manager.add_callback(callback=callback)
-            except Exception as e:
-                print(f"Error creating callback {name}: {str(e)}")
+            callback = cls.create_callback(name, callback_config)
+            if callback:
+                manager.add_callback(callback=callback)
+
         return manager
 
     
@@ -276,6 +288,7 @@ class ModelCkptCallback(Callback):
         mode: str = 'max',
         **kwargs
     ):
+        
         super().__init__(**kwargs)
         self.prefixfilename = Path(prefixfilename)
         self.save_on_epoch = save_on_epoch
@@ -388,7 +401,7 @@ class EarlyStoppingCallback(Callback):
         min_delta: float = 0.0,
         **kwargs
     ):
-        super().__init__(kwargs)
+        super().__init__(**kwargs)
         self.patience = patience
         self.min_delta = min_delta
         self.monitor = monitor
@@ -502,14 +515,14 @@ class SWACallback(Callback):
         trainer.swa_opt.swap_swa_sgd()
 
 
-@CallbackFactory.register(name='communication_hook_ddp')
+@CallbackFactory.register(name='communication_hook_ddp', priority=Priority.NORMAL)
 class CommunicationHookCallback(Callback):
     def __init__(
         self,
         type: str = 'fp16',
         **kwargs
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         self.type = type
     
     def on_pretrain_routine_start(
@@ -546,7 +559,7 @@ class TimerCallback(Callback):
     def __init__(
         self, **kwargs
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         self.start_time = None
         self.epoch_start_time = None
         self.batch_start_time = None
@@ -666,9 +679,10 @@ class AWPCallback(Callback):
         self,
         adv_param='weight',
         adv_lr=0.001,
-        adv_eps=0.001
+        adv_eps=0.001,
+        **kwargs
     ):
-        
+        super().__init__(**kwargs)
         self.adv_param = adv_param
         self.adv_lr = adv_lr
         self.adv_eps = adv_eps
