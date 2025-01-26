@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 
 from torchcontrib.optim import SWA
-
+import wandb
 from torch.distributed.algorithms.ddp_comm_hooks import default_hooks, powerSGD_hook
 from torch.nn.parallel import DistributedDataParallel as DDP
 import time
@@ -245,7 +245,7 @@ class WandbLoggerCallback(Callback):
                    'global_gradient_norm': grad_stats['global_gradient_norm']
                })
         if log_dict:
-            trainer.accelerator.log(log_dict, step=global_step)
+            wandb.log(log_dict, step=global_step)
         
 
     def on_val_batch_end(self, trainer, params: Optional[Dict[str, Any]] = None):
@@ -258,7 +258,7 @@ class WandbLoggerCallback(Callback):
             log_dict.update({f"val/{k}": v['current'] for k, v in val_metrics_summary.items()})
 
         if log_dict: 
-            trainer.accelerator.log(log_dict, step=global_step)
+            wandb.log(log_dict, step=global_step)
     
 
             

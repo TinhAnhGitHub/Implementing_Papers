@@ -1,3 +1,4 @@
+config_name: SISR_config_train
 core:
   seed: 3407
   experiment_name: project_SISR

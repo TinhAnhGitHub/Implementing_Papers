@@ -84,7 +84,7 @@ class Trainer:
         self.rank = rank
         
 
-        self.transforms = SuperResolutionDataset(config)
+        self.transforms = (config)
         self.logger = Logger(
             log_dir=config.logging.log_dir,
             rank=self.rank
@@ -112,15 +112,8 @@ class Trainer:
         )
     
     def _create_accelerator(self) -> Accelerator:
-        project_config = ProjectConfiguration(
-            project_dir=str(Path(self.config.logging.wandb.dir)),
-            automatic_checkpoint_naming=True
-        )
-
         return Accelerator(
             gradient_accumulation_steps=self.config.training.gradient_accumulation_steps,
-            log_with="wandb",
-            project_config=project_config,
             mixed_precision="no" if self.config.core.precision == 'fp32' else self.config.core.precision,
             device_placement=True
         )
@@ -188,6 +181,7 @@ class Trainer:
 
     def _create_dataset(self, is_train: bool) -> SuperResolutionDataset:
         return SuperResolutionDataset(
+            config = self.config,
             img_dir=self.config.data.paths.train if is_train else self.config.data.paths.val,
             transform=self.transforms.get_train_transforms() if is_train else self.transforms.get_val_transforms(),
             is_train=is_train,

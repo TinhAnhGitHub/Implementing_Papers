@@ -3,9 +3,10 @@ from PIL import Image
 from torch.utils.data import Dataset
 from typing import Optional, Tuple
 import torch
+from omegaconf import DictConfig
 import torch.nn as nn
 import torchvision.models as models
-
+from .transform import SuperResolutionTransform
 class FeatureExtractor(nn.Module):
     def __init__(self, model_name: str = "vgg19", layer_name: str = "features.35"):
         """
@@ -43,6 +44,7 @@ class FeatureExtractor(nn.Module):
 class SuperResolutionDataset(Dataset):
     def __init__(
         self,
+        config: DictConfig,
         img_dir: str,
         transform: Optional[callable] = None,
         is_train: bool = True,
@@ -61,6 +63,8 @@ class SuperResolutionDataset(Dataset):
             self.feature_extractor = FeatureExtractor(model_name=feature_model, layer_name=feature_layer)
         else:
             self.feature_extractor = None
+
+        self.transform  = SuperResolutionTransform(config=config)
     
     def __len__(self):
         return len(self.image_files)
@@ -76,7 +80,7 @@ class SuperResolutionDataset(Dataset):
             self.image_files[index]
         )
         hr_image = Image.open(img_path).convert('RGB')
-
+        
         lr_size = (
             hr_image.width // self.scale_factor,
             hr_image.height // self.scale_factor
