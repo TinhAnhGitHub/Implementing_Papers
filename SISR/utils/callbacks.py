@@ -265,16 +265,20 @@ class WandbLoggerCallback(Callback):
         
 
     def on_val_batch_end(self, trainer, params: Optional[Dict[str, Any]] = None):
-        global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
+        if trainer.rank == 0:
+            
+            global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
+    
+            log_dict = {}
+    
+            if self.log_val_metrics:
+                val_metrics_summary = trainer.val_metrics.get_summary()
+                log_dict.update({f"val/{k}": v['current'] for k, v in val_metrics_summary.items()})
+    
+            if log_dict: 
+                wandb.log(log_dict, step=global_step)
 
-        log_dict = {}
-
-        if self.log_val_metrics:
-            val_metrics_summary = trainer.val_metrics.get_summary()
-            log_dict.update({f"val/{k}": v['current'] for k, v in val_metrics_summary.items()})
-
-        if log_dict: 
-            wandb.log(log_dict, step=global_step)
+        trainer.accelerator.wait_for_everyone()
     
 
             
@@ -315,42 +319,44 @@ class ModelCkptCallback(Callback):
         trainer,
         params: Optional[Dict[str, Any]] = None
     ):
-        
-        global_step = len(trainer.train_loader) * trainer.state.current_epoch 
-        if "_" not in self.keep_condition:
-            raise ValueError(
-                f"Warning: Invalid monitor format for model checkpoint saving, please indicate with {{metric_type}}_{{metric_name}}, like val_ssim, or train_loss"
+
+        if trainer.rank == 0:
+            global_step = len(trainer.train_loader) * trainer.state.current_epoch 
+            if "_" not in self.keep_condition:
+                raise ValueError(
+                    f"Warning: Invalid monitor format for model checkpoint saving, please indicate with {{metric_type}}_{{metric_name}}, like val_ssim, or train_loss"
+                )
+                
+    
+            monitor_type, metric_name = self.keep_condition.split("_",1)
+            monitor_type = monitor_type.lower()
+            
+            if monitor_type == "train":
+                if not hasattr(trainer.train_metrics, metric_name):
+                    raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
+                metric_value = getattr(trainer.train_metrics, metric_name).tracker.history[-1]
+            elif monitor_type == "val":
+                if not hasattr(trainer.val_metrics, metric_name):
+                    raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
+                metric_value = getattr(trainer.val_metrics, metric_name).tracker.history[-1]
+            else:
+                raise ValueError(f"Monitor type {monitor_type} is not valid")
+            
+    
+            suffix=f"epoch_{trainer.state.current_epoch}_step_{global_step}_{metric_name}_{metric_value}"
+            self._save_checkpoint(
+                trainer,
+                 suffix=suffix,
+                metric_value=metric_value,
+                global_step=global_step
             )
             
+            self._manage_checkpoints()
 
-        monitor_type, metric_name = self.keep_condition.split("_",1)
-        monitor_type = monitor_type.lower()
-        
-        if monitor_type == "train":
-            if not hasattr(trainer.train_metrics, metric_name):
-                raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
-            metric_value = getattr(trainer.train_metrics, metric_name).tracker.history[-1]
-        elif monitor_type == "val":
-            if not hasattr(trainer.val_metrics, metric_name):
-                raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
-            metric_value = getattr(trainer.val_metrics, metric_name).tracker.history[-1]
-        else:
-            raise ValueError(f"Monitor type {monitor_type} is not valid")
-        
-
-        suffix=f"epoch_{trainer.state.current_epoch}_step_{global_step}_{metric_name}_{metric_value}"
-        self._save_checkpoint(
-            trainer,
-             suffix=suffix,
-            metric_value=metric_value,
-            global_step=global_step
-        )
-        
-        self._manage_checkpoints()
+        trainer.accelerator.wait_for_everyone()
     
     def _save_checkpoint(self, trainer, suffix:str, metric_value: Optional[float] = None, global_step: Optional[int]=None) -> None:
-        if not trainer.accelerator.is_main_process:
-            return
+       
         
         save_path = self.prefixfilename / f"{suffix}.pt"
         save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -411,36 +417,38 @@ class EarlyStoppingCallback(Callback):
         self.monitor = monitor
 
     
-    def on_val_end(self, trainer, params: Dict[str, Any]):
-        if "_" not in self.monitor:
-            raise ValueError(
-                f"Warning: Invalid monitor format for early stopping. Please specify metrics in the form: '{{metric_type}}_{{metric_name}}'"
+    def on_val_end(self, trainer, params: Dict[str, Any]=None):
+        if trainer.rank == 0:
+            if "_" not in self.monitor:
+                raise ValueError(
+                    f"Warning: Invalid monitor format for early stopping. Please specify metrics in the form: '{{metric_type}}_{{metric_name}}'"
+                )
+            
+            monitor_type, metric_name = self.monitor.split("_",1)
+            monitor_type = monitor_type.lower()
+    
+            if monitor_type == "train":
+                if not hasattr(trainer.train_metrics, metric_name):
+                    raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
+                   
+                metric_tracker = getattr(trainer.train_metrics, metric_name).tracker
+            elif monitor_type == "val":
+                if not hasattr(trainer.val_metrics, metric_name):
+                    raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
+                metric_tracker = getattr(trainer.val_metrics, metric_name).tracker
+            else:
+                raise ValueError(f"Monitor type {monitor_type} is not valid")
+    
+            should_stop = metric_tracker.should_early_stop(
+                    patience = self.patience,
+                    min_delta = self.min_delta
             )
-        
-        monitor_type, metric_name = self.monitor.split("_",1)
-        monitor_type = monitor_type.lower()
-
-        if monitor_type == "train":
-            if not hasattr(trainer.train_metrics, metric_name):
-                raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
-               
-            metric_tracker = getattr(trainer.train_metrics, metric_name).tracker
-        elif monitor_type == "val":
-            if not hasattr(trainer.val_metrics, metric_name):
-                raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
-            metric_tracker = getattr(trainer.val_metrics, metric_name).tracker
-        else:
-            raise ValueError(f"Monitor type {monitor_type} is not valid")
-
-        should_stop = metric_tracker.should_early_stop(
-                patience = self.patience,
-                min_delta = self.min_delta
-        )
-
-        if should_stop:
-            trainer.state.early_stop = True
-            if trainer.rank == 0:
-                trainer.logger.log(f"Early stopping trigger since the metric [{metric_name}] is not improving anymore")
+    
+            if should_stop:
+                trainer.state.early_stop = True
+                if trainer.rank == 0:
+                    trainer.logger.log(f"Early stopping trigger since the metric [{metric_name}] is not improving anymore")
+        trainer.accelerator.wait_for_everyone()
         
 
         
@@ -457,32 +465,50 @@ class EMACallback(Callback):
         self.backup = {}
     
 
-    def on_pretrain_routine_start(self, trainer, params: Optional[Dict[str, Any]] = None):
-        for name, param in trainer.model.named_parameters():
-            if param.requires_grad:
-                self.shadow[name] = param.data.clone()
+    def _get_model(self, trainer):
+        model = trainer.model
+        if hasattr(model, 'module'):
+            model = model.module
+        return model
 
-        print("EMA is initialized!!!!")
+    
+    def on_pretrain_routine_start(self, trainer, params: Optional[Dict[str, Any]] = None):
+        model = self._get_model(trainer)
+        
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                self.shadow[name] = param.data.clone().cpu()
+
+        if trainer.rank == 0:
+            trainer.logger.log("EMA initialized!")
     
     def after_forward_backward(self, trainer, params: Optional[Dict[str, Any]] = None):
+        model = self._get_model(trainer)
         with torch.no_grad():
-            for name, param in trainer.model.named_parameters():
+            for name, param in model.named_parameters():
                 if param.requires_grad:
+                    self.shadow[name] = self.shadow[name].to(param.device)
                     self.shadow[name].mul_(self.decay).add_(
                         param.data, alpha= 1 - self.decay
                     )
+                    self.shadow[name] = self.shadow[name].cpu()  
     
     def on_val_batch_start(self, trainer, params = None):
-        ## apply shadow function
+        model = self._get_model(trainer)
 
-        for name, param in self.model.named_parameters():
-            self.backup[name] = param.data
+        trainer.accelerator.wait_for_everyone()
+        
+        for name, param in model.named_parameters():
+            self.backup[name] = param.data.clone()
             param.data = self.shadow[name].to(param.device)
         
     def on_val_batch_end(self, trainer, params = None):
         ## restore function
-        for name, param in trainer.model.named_parameters():
-            param.data = self.backup[name].to(param.device)
+        model = self._get_model(trainer)
+        trainer.accelerator.wait_for_everyone()
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                param.data.copy_(self.backup[name].to(param.device))
         
 
 @CallbackFactory.register(name='swa', priority=Priority.HIGH)
@@ -630,7 +656,7 @@ class TimerCallback(Callback):
             return
         
         avg_batch_time = np.mean(self.batch_times).item()
-        total_batches = len(trainer.train_loader) * trainer.config.training.epochs
+        total_batches = len(trainer.train_loader) * trainer.config.training.num_epochs
         global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
         remaining_batches = total_batches - global_step 
 
@@ -688,41 +714,66 @@ class AWPCallback(Callback):
         adv_param='weight',
         adv_lr=0.001,
         adv_eps=0.001,
+        
         **kwargs
     ):
         super().__init__(**kwargs)
         self.adv_param = adv_param
         self.adv_lr = adv_lr
         self.adv_eps = adv_eps
+        self.backup = {}
+        self.awp_applied  = False # first pertubation is not going to activate
     
-    def before_forward_backward(self, trainer, params = None):
-        
-        self._save(trainer, params)
-        self._attack_step(trainer, params)
+    def _get_model(self, trainer):
+        model = trainer.model
+        if hasattr(model, 'module'):
+            model = model.module
+        return model
     
     def _attack_step(self, trainer, params=None):
         e = 1e-6
-        for name, param in trainer.model.named_parameters():
-            if param.requires_grad and param.grad is not None and self.adv_param in name:
-                grad = self.optimizer.state[param]['exp_avg']
+        model = self._get_model(trainer)
+        for name, param in model.named_parameters():
+            if param.requires_grad and param.grad is not None and trainer.config.callbacks.awp.adv_param in name:
+                
+                optimizer = getattr(trainer.optimizer, 'optimizer', trainer.optimizer)
+                grad = optimizer.state[param]['exp_avg']
                 norm_grad = torch.norm(grad)
                 norm_data = torch.norm(param.detach())
             
                 if norm_grad != 0 and not torch.isnan(norm_grad):
-                    
-                        limit_eps = self.adv_eps * param.detach().abs()
+                        limit_eps = trainer.config.callbacks.awp.adv_eps * param.detach().abs()
                         param_min = param.data - limit_eps
                         param_max = param.data + limit_eps
-                        param.data.add_(grad, alpha=(self.adv_lr * (norm_data + e) / (norm_grad + e)))
+                        param.data.add_(grad, alpha=(trainer.config.callbacks.adv_lr * (norm_data + e) / (norm_grad + e)))
                         param.data.clamp_(param_min, param_max)
-    
-    def _save(self, trainer, params=None):
-        for name, param in trainer.model.named_parameters():
-            if param.requires_grad and param.grad is not None and self.adv_param in name:
+                    
+    def _save(self, trainer, params) :
+        model = self._get_model(trainer)
+        for name, param in model.named_parameters():
+            if param.requires_grad and param.grad is not None and trainer.config.callbacks.awp.adv_param in name:
                 if name not in self.backup:
                     self.backup[name] = param.clone().detach()
                 else:
                     self.backup[name].copy_(param.data)
+    
+    def after_forward_backward(self, trainer, params=None):
+        # restore function
+        model = self._get_model(trainer)
+        
+        for name, param in model.named_parameters():
+            if name in self.backup:
+                param.data.copy_(self.backup[name])
+    
+    def before_forward_backward(self, trainer, params=None):
+        # pertubation
+        if trainer.config.callbacks.get("awp", {}).get("enabled", False) and self.awp_applied:
+            self._attack_step(trainer, params)
+            self._save(trainer, params)
+             
+    def optimizer_step(self, trainer):
+       if trainer.config.callbacks.get("awp", {}).get("enabled", False):
+          self.awp_applied = True
     
 
 @CallbackFactory.register(name='gradient_monitor', priority=Priority.NORMAL)
@@ -731,28 +782,38 @@ class GradientMonitorCallback(Callback):
         super().__init__(**kwargs)
         self.log_interval = log_interval
     
+    def _get_model(self, trainer):
+        model = trainer.model
+        if hasattr(model, 'module'):
+            model = model.module
+        
+        return model
+
     def on_train_start(self, trainer, params: Optional[Dict[str, Any]] = None):
         trainer.gradient_norm_history = []
     
     def optimizer_step(self, trainer, params: Optional[Dict[str, Any]] = None):
-        global_step = trainer.state.current_epoch * len(trainer.train_loader) + trainer.state.current_batch_step
-        if global_step % self.log_interval == 0:
-            grad_norms = {}
-            for name, param in trainer.model.named_parameters():
-                if param.grad is not None:
-                    grad_norm = param.grad.norm().item()
-                    grad_norms[name] = grad_norm
+        if trainer.rank == 0:
+            model = self._get_model(trainer)
+            global_step = trainer.state.current_epoch * len(trainer.train_loader) + trainer.state.current_batch_step
+            if global_step % self.log_interval == 0:
+                grad_norms = {}
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        grad_norm = param.grad.norm().item()
+                        grad_norms[name] = grad_norm
+                    
                 
-            
-            grad_list = list(grad_norms.values())
-            global_grad = (sum(g**2 for g in grad_list) ** 0.5) if grad_list else 0.0
-            
+                grad_list = list(grad_norms.values())
+                global_grad = (sum(g**2 for g in grad_list) ** 0.5) if grad_list else 0.0
+                
 
-            trainer.gradient_norm_history.append({
-                "global_step": global_step,
-                "global_gradient_norm": global_grad
-            })
-    
+                trainer.gradient_norm_history.append({
+                    "global_step": global_step,
+                    "global_gradient_norm": global_grad
+                })
+
+        trainer.accelerator.wait_for_everyone()
 
 @CallbackFactory.register(name="visualization", priority=Priority.LOWEST)
 class VisualizationCallback(Callback):

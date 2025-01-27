@@ -48,4 +48,4 @@ class Logger:
         else:
             self.console.print(message)
         
-        self.logger.log(level, message)
+        # self.logger.log(level, message)

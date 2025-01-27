@@ -2,16 +2,17 @@
 from typing import Tuple, Optional,  Dict
 import torch
 from torch import Tensor
-
+import numpy as np
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from omegaconf import DictConfig
 from accelerate import Accelerator
-
+import os
 from dataclasses import dataclass
 from tqdm.auto import tqdm
 import psutil
 import GPUtil
+import matplotlib.pyplot as plt
 from data import  SuperResolutionDataset, SuperResolutionTransform, create_datasets
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
@@ -104,13 +105,13 @@ class Trainer:
         
         self._setup_ddp()
 
-        self.callback_manager.trigger_event("on_pretrain_routine_start", trainer=self)
 
         self.model, self.optimizer, self.train_loader, self.val_loader = self.accelerator.prepare(
             self.model, self.optimizer, self.train_loader, self.val_loader
         )
         self.train_metrics = MetricCollection(config=self.config, metric_type="train", device = self.accelerator.device)
         self.val_metrics = MetricCollection(config=self.config, metric_type="val", device = self.accelerator.device)
+        self.callback_manager.trigger_event("on_pretrain_routine_start", trainer=self)
 
     def _setup_ddp(self):
         if self.world_size > 1:
@@ -251,9 +252,7 @@ class Trainer:
                     self.batch_cur_loss = loss
                     self.callback_manager.trigger_event("on_train_batch_end", trainer=self)
 
-                if batch_idx % self.config.logging.interval == 0:
-                    self._log_training_metrics()
-    
+                
     def _train_step(self, batch: Dict[str, Tensor]):
 
         
@@ -264,8 +263,7 @@ class Trainer:
         self.callback_manager.trigger_event(
             'after_forward_backward', trainer=self
         )
-
-        
+                
         metrics = {
             "loss": loss.item(),
             "psnr": (outputs, batch['hr_image']),
@@ -321,15 +319,13 @@ class Trainer:
         self, loss: Tensor
     ) -> None:
         
-        if self.config.training.gradient_accumulation_steps > 1:
-            loss = loss / self.config.training.gradient_accumulation_steps
-        
         self.accelerator.backward(loss)
         if self.accelerator.sync_gradients and self.config.optimizer.grad_clip:
             if self.config.optimizer.grad_clip.get("type", "norm") == "norm":
                 self.accelerator.clip_grad_norm_(
                     self.model.parameters(),
-                    self.config.optimizer.grad_clip.value
+                    self.config.optimizer.grad_clip.max_norm,
+                    self.config.optimizer.grad_clip.norm_type
                 )
             else:
                 self.accelerator.clip_grad_value_(
@@ -365,7 +361,7 @@ class Trainer:
                         self._validation_step(batch)
                         pbar.update()
         
-        self._log_validation_results()
+            self._log_validation_results()
         self.callback_manager.trigger_event("on_val_end", trainer=self)
         self.accelerator.wait_for_everyone()
     
@@ -410,6 +406,7 @@ class Trainer:
             )   
 
             for metric_name, metric_values in metrics_summary.items():
+                print(metric_name, metric_values)
                 log_message += (
                     f"{metric_name}:\n"
                     f"  Current: {metric_values['current']:.4f}\n"
