@@ -3,7 +3,7 @@ from torch import Tensor
 from omegaconf import DictConfig
 from torchmetrics.image import PeakSignalNoiseRatio as PSNR
 from torchmetrics.image import StructuralSimilarityIndexMeasure as SSIM
-
+import torch
 from .train_utils import MetricTracker
     
 class MetricRegistry:
@@ -25,35 +25,75 @@ class MetricRegistry:
 
 
 class PSNRMetric:
-    def __init__(self, data_range: float = 1.0):
-        self.psnr = PSNR(data_range=data_range)
+    def __init__(self, data_range: float = 1.0, device: Optional[torch.device] = None):
+        self.psnr = PSNR(data_range=data_range).to(device)
         self.tracker = MetricTracker(name="PSNR", mode="max", fmt="{:.2f}")
+        self.device = device
     
     def compute(self, preds: Tensor, targets: Tensor) -> float:
+        # Check the device of preds and targets
+        print("Preds device: ", preds.device)
+        print("Targets device: ", targets.device)
+        
+        if self.device:
+            print("Moving preds and targets to device: ", self.device)
+            preds = preds.to(self.device)
+            targets = targets.to(self.device)
+        
+        print("After moving - Preds device: ", preds.device)
+        print("After moving - Targets device: ", targets.device)
+        
         value = self.psnr(preds, targets).item()
         self.tracker.update(value)
         return value
+
 
     def reset(self) -> None:
         self.psnr.reset()
         self.tracker.reset()
 
+    def to(self, device: torch.device) -> 'PSNRMetric':
+          self.device = device
+          self.psnr = self.psnr.to(device)
+          return self
+
+
+
 class SSIMMetric:
-    def __init__(self, data_range: float = 1.0):
-        self.ssim = SSIM(data_range=data_range)
+    def __init__(self, data_range: float = 1.0, device: Optional[torch.device] = None):
+        self.ssim = SSIM(data_range=data_range).to(device)
         self.tracker = MetricTracker(name="SSIM", mode="max", fmt="{:.4f}")
+        self.device = device
     
     def compute(self, preds: Tensor, targets: Tensor) -> float:
+        # Check the device of preds and targets
+        print("Preds device: ", preds.device)
+        print("Targets device: ", targets.device)
+        
+        if self.device:
+            print("Moving preds and targets to device: ", self.device)
+            preds = preds.to(self.device)
+            targets = targets.to(self.device)
+        
+        print("After moving - Preds device: ", preds.device)
+        print("After moving - Targets device: ", targets.device)
+        
         value = self.ssim(preds, targets).item()
         self.tracker.update(value)
         return value
 
+
     def reset(self) -> None:
         self.ssim.reset()
         self.tracker.reset()
+    
+    def to(self, device: torch.device) -> 'SSIMMetric':
+          self.device = device
+          self.ssim = self.ssim.to(device)
+          return self
 
 class LossMetric:
-    def __init__(self):
+    def __init__(self, device):
         self.tracker = MetricTracker(name="Loss", mode="min", fmt="{:.4f}")
         self._total = 0.0
         self._count = 0
@@ -76,37 +116,42 @@ MetricRegistry.register(name="psnr", metric_cls=PSNRMetric)
 MetricRegistry.register(name="ssim", metric_cls=SSIMMetric)
 MetricRegistry.register(name="loss", metric_cls=LossMetric)
 
-
+import torch
 
 class MetricCollection:
     def __init__(
         self,
         config: DictConfig,
-        metric_type: Literal['train', 'val']
+        metric_type: Literal['train', 'val'],
+        device: Optional[torch.device] = None
     ):
         self.metric_type = metric_type
         self.metrics: Dict[str, Any] = {}
+        self.device = device
         self._initialize_metrics(config)
 
     def _initialize_metrics(self, config: DictConfig) -> None:
+        print("DEVICEEEEEEEEEEE", self.device)
         metrics_config = getattr(config.metrics, self.metric_type, {})
         for metric_name in metrics_config:
             metric_cls = MetricRegistry.get(metric_name)
             if metric_cls is None:
                 raise ValueError(f"Unknown metric: {metric_name}")
-            self.metrics[metric_name] = metric_cls()
+            self.metrics[metric_name] = metric_cls(device=self.device)
 
     def update(self, metrics_values: Dict[str, Union[float, Tensor]]) -> None:
         for metric_name, value in metrics_values.items():
             metric = self.metrics.get(metric_name)
+            
             if metric is None:
                 raise ValueError(f"Metric {metric_name} is not registered.")
-            if isinstance(value, Tensor):
-                if hasattr(metric, "compute"):
-                    metric.compute(value[0], value[1])  
-            elif isinstance(value, (float, int)):
-                if hasattr(metric, "update"):
-                    metric.update(value)
+            
+            
+            if hasattr(metric, "compute"):
+                metric.compute(value[0], value[1])  
+        
+            if hasattr(metric, "update"):
+                metric.update(value)
 
     def get_summary_history(self):
         return {
@@ -133,9 +178,3 @@ class MetricCollection:
             name: metric.tracker.get_improvement(window)
             for name, metric in self.metrics.items()
         }
-
-    
-
-
-
-        

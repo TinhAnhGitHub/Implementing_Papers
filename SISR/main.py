@@ -17,10 +17,7 @@ def get_pipeline_type(config_name: str) -> str:
 def main(cfg: DictConfig) -> None:
 
     pipeline_type = get_pipeline_type(cfg.get('config_name', 'configs'))
-    wandb_config = cfg.callbacks.wandb
-    if cfg.callbacks.wandb.enabled:
-        init_wandb(wandb_config)
-
+    
     try:
         if pipeline_type == 'train':
             world_size = torch.cuda.device_count()

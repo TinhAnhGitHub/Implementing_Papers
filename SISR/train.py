@@ -16,7 +16,7 @@ from data import  SuperResolutionDataset, SuperResolutionTransform, create_datas
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
 from utils import PatchLoss, MetricCollection
-from utils import  create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes
+from utils import  create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes, init_wandb
 
 
 
@@ -101,8 +101,7 @@ class Trainer:
 
         #* Init loss and metric
         self.criterion = PatchLoss(self.config)
-        self.train_metrics = MetricCollection(config=self.config, metric_type="train")
-        self.val_metrics = MetricCollection(config=self.config, metric_type="val")
+        
         self._setup_ddp()
 
         self.callback_manager.trigger_event("on_pretrain_routine_start", trainer=self)
@@ -110,6 +109,8 @@ class Trainer:
         self.model, self.optimizer, self.train_loader, self.val_loader = self.accelerator.prepare(
             self.model, self.optimizer, self.train_loader, self.val_loader
         )
+        self.train_metrics = MetricCollection(config=self.config, metric_type="train", device = self.accelerator.device)
+        self.val_metrics = MetricCollection(config=self.config, metric_type="val", device = self.accelerator.device)
 
     def _setup_ddp(self):
         if self.world_size > 1:
@@ -267,8 +268,8 @@ class Trainer:
         
         metrics = {
             "loss": loss.item(),
-            "psnr": (outputs.cpu().detach(), batch['hr_image']),
-            "ssim": (outputs.cpu().detach(), batch['hr_image'])
+            "psnr": (outputs, batch['hr_image']),
+            "ssim": (outputs, batch['hr_image'])
         }
         self.train_metrics.update(metrics)
         return loss
@@ -426,6 +427,10 @@ class Trainer:
 
 def train_process(rank: int, world_size: int, config: DictConfig):
     try:
+        wandb_config = config.callbacks.wandb
+        if config.callbacks.wandb.enabled:
+            init_wandb(wandb_config)
+
         trainer = Trainer(
             config=config,
             rank=rank,
