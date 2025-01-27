@@ -31,18 +31,10 @@ class PSNRMetric:
         self.device = device
     
     def compute(self, preds: Tensor, targets: Tensor) -> float:
-        # Check the device of preds and targets
-        print("Preds device: ", preds.device)
-        print("Targets device: ", targets.device)
-        
         if self.device:
-            print("Moving preds and targets to device: ", self.device)
             preds = preds.to(self.device)
             targets = targets.to(self.device)
-        
-        print("After moving - Preds device: ", preds.device)
-        print("After moving - Targets device: ", targets.device)
-        
+            
         value = self.psnr(preds, targets).item()
         self.tracker.update(value)
         return value
@@ -66,18 +58,9 @@ class SSIMMetric:
         self.device = device
     
     def compute(self, preds: Tensor, targets: Tensor) -> float:
-        # Check the device of preds and targets
-        print("Preds device: ", preds.device)
-        print("Targets device: ", targets.device)
-        
         if self.device:
-            print("Moving preds and targets to device: ", self.device)
             preds = preds.to(self.device)
             targets = targets.to(self.device)
-        
-        print("After moving - Preds device: ", preds.device)
-        print("After moving - Targets device: ", targets.device)
-        
         value = self.ssim(preds, targets).item()
         self.tracker.update(value)
         return value
