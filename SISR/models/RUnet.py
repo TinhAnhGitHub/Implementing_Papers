@@ -372,12 +372,7 @@ class RUNet(nn.Module):
             )
         )
 
-        self.up_bottleneck3 = UpsampleHandler(
-            in_channels=self.output_last_block_in_encoder,
-            out_channels=self.output_last_block_in_encoder,
-            up_type=up_type,
-            up_mode=up_mode
-        )
+        
 
 
         """
