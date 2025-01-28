@@ -17,9 +17,7 @@ class SuperResolutionDataset(Dataset):
         img_dir,
         transform: Optional[callable] = None,
         is_train: bool = True,
-        scale_factor: int = 4,
-        use_feature_loss: bool = False,
-        feature_layer: Optional[str] = "features.35"
+        scale_factor: int = 4
     ):
         self.transform = transform
         self.is_train = is_train
@@ -92,18 +90,14 @@ def create_datasets(
             img_dir=img_dir,
             transform=train_transform,
             is_train=True,
-            scale_factor=config.data.scale_factor,
-            use_feature_loss=config.training.loss.use_feature_loss,
-            feature_layer=config.training.loss.feature_layer,
+            scale_factor=config.data.scale_factor
         )
         val_dataset = SuperResolutionDataset(
             image_files=val_files,
             img_dir=img_dir,
             transform=val_transform,
             is_train=False,
-            scale_factor=config.data.scale_factor,
-            use_feature_loss=config.training.loss.use_feature_loss,
-            feature_layer=config.training.loss.feature_layer,
+            scale_factor=config.data.scale_factor
         )
     else:
         train_dataset = SuperResolutionDataset(
@@ -111,9 +105,7 @@ def create_datasets(
             img_dir=img_dir,
             transform=train_transform,
             is_train=True,
-            scale_factor=config.data.scale_factor,
-            use_feature_loss=config.training.loss.use_feature_loss,
-            feature_layer=config.training.loss.feature_layer,
+            scale_factor=config.data.scale_factor
         )
         val_dataset = None
     
