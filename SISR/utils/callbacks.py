@@ -263,7 +263,7 @@ class WandbLoggerCallback(Callback):
                 if log_dict:
                     wandb.log(log_dict, step=global_step)
             
-        trainer.wait_for_everyone()
+        trainer.accelerator.wait_for_everyone()
             
 
     def on_val_batch_end(self, trainer, params: Optional[Dict[str, Any]] = None):
@@ -465,6 +465,7 @@ class EMACallback(Callback):
         self.decay = decay
         self.shadow = {}
         self.backup = {}
+        self.initialized = False
     
 
     def _get_model(self, trainer):
@@ -472,45 +473,56 @@ class EMACallback(Callback):
         if hasattr(model, 'module'):
             model = model.module
         return model
-
     
-    def on_pretrain_routine_start(self, trainer, params: Optional[Dict[str, Any]] = None):
+    def _initialize_shadow_params(self, trainer):
         model = self._get_model(trainer)
-        
         for name, param in model.named_parameters():
             if param.requires_grad:
                 self.shadow[name] = param.data.clone().cpu()
-
+        
+        self.initialized = True
         if trainer.rank == 0:
-            trainer.logger.log("EMA initialized!")
+            trainer.logger.log("EMA initialized")
+    
+    def on_train_start(self, trainer, params = None):
+        self._initialize_shadow_params(trainer)
+    
     
     def after_forward_backward(self, trainer, params: Optional[Dict[str, Any]] = None):
         model = self._get_model(trainer)
         with torch.no_grad():
             for name, param in model.named_parameters():
                 if param.requires_grad:
+                    assert name in self.shadow, f"Parameter {name} not found in EMA shadow dictionary"
                     self.shadow[name] = self.shadow[name].to(param.device)
                     self.shadow[name].mul_(self.decay).add_(
-                        param.data, alpha= 1 - self.decay
+                        param.data, alpha=1 - self.decay
                     )
-                    self.shadow[name] = self.shadow[name].cpu()  
+                    self.shadow[name] = self.shadow[name].cpu()
     
     def on_val_batch_start(self, trainer, params = None):
+        if not self.initialized:
+            return
+        
         model = self._get_model(trainer)
-
         trainer.accelerator.wait_for_everyone()
         
         for name, param in model.named_parameters():
-            self.backup[name] = param.data.clone()
-            param.data = self.shadow[name].to(param.device)
+            if param.requires_grad:
+                assert name in self.shadow, f"Parameter {name} not found in EMA shadow dictionary"
+                self.backup[name] = param.data.clone()
+                param.data.copy_(self.shadow[name].to(param.device))
         
     def on_val_batch_end(self, trainer, params = None):
-        ## restore function
+        if not self.initialized:
+            return
         model = self._get_model(trainer)
         trainer.accelerator.wait_for_everyone()
         for name, param in model.named_parameters():
             if param.requires_grad:
+                assert name in self.backup, f"Parameter {name} not found in backup dictionary"
                 param.data.copy_(self.backup[name].to(param.device))
+        self.backup.clear()
         
 
 @CallbackFactory.register(name='swa', priority=Priority.HIGH)
