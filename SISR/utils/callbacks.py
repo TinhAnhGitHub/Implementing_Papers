@@ -243,25 +243,28 @@ class WandbLoggerCallback(Callback):
 
     def on_train_batch_end(self, trainer, params: Optional[Dict[str, Any]] = None):
         
-        global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
-        log_dict = {}
+        if trainer.rank == 0:
+            global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
+            log_dict = {}
 
-        if self.log_train_metrics:
-            train_metrics_summary = trainer.train_metrics.get_summary()
-            log_dict.update(
-                {f"train/{k}": v['current'] for k, v in train_metrics_summary.items()}
-            )
-        
-        
-        if self.log_grad_norm and hasattr(trainer, 'gradient_norm_history') and trainer.gradient_norm_history:
-           grad_stats = trainer.gradient_norm_history[-1]
-           if 'global_gradient_norm'  in grad_stats:
-               log_dict.update({
-                   'global_gradient_norm': grad_stats['global_gradient_norm']
-               })
-        if log_dict:
-            wandb.log(log_dict, step=global_step)
-        
+            if self.log_train_metrics:
+                train_metrics_summary = trainer.train_metrics.get_summary()
+                log_dict.update(
+                    {f"train/{k}": v['current'] for k, v in train_metrics_summary.items()}
+                )
+            
+            
+            if self.log_grad_norm and hasattr(trainer, 'gradient_norm_history') and trainer.gradient_norm_history:
+                grad_stats = trainer.gradient_norm_history[-1]
+                if 'global_gradient_norm'  in grad_stats:
+                    log_dict.update({
+                        'global_gradient_norm': grad_stats['global_gradient_norm']
+                    })
+                if log_dict:
+                    wandb.log(log_dict, step=global_step)
+            
+        trainer.wait_for_everyone()
+            
 
     def on_val_batch_end(self, trainer, params: Optional[Dict[str, Any]] = None):
         if trainer.rank == 0:
@@ -529,7 +532,7 @@ class SWACallback(Callback):
 
         base_opt = trainer.optimizer
         if not isinstance(base_opt, torch.optim.SGD):
-            if self.rank == 0:
+            if trainer.rank == 0:
                 trainer.logger.log(f"Warning: Only SGD optimizer is allowed to use in couple with SWA")
             
         

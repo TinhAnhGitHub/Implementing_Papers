@@ -424,8 +424,10 @@ class Trainer:
 
 def train_process(rank: int, world_size: int, config: DictConfig):
     try:
+
         wandb_config = config.callbacks.wandb
-        if config.callbacks.wandb.enabled:
+
+        if config.callbacks.wandb.enabled and rank == 0:
             init_wandb(wandb_config)
 
         trainer = Trainer(
