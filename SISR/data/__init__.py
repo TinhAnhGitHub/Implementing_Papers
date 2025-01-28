@@ -1,2 +1,2 @@
-from .dataloader import FeatureExtractor, SuperResolutionDataset, create_datasets
+from .dataloader import SuperResolutionDataset, create_datasets
 from .transform import SuperResolutionTransform

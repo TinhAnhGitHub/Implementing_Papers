@@ -349,8 +349,8 @@ class ModelCkptCallback(Callback):
     
             suffix=f"epoch_{trainer.state.current_epoch}_step_{global_step}_{metric_name}_{metric_value}"
             self._save_checkpoint(
-                trainer,
-                 suffix=suffix,
+                trainer,    
+                suffix=suffix,
                 metric_value=metric_value,
                 global_step=global_step
             )
