@@ -8,7 +8,6 @@ import os
 import torch
 import numpy as np
 from pathlib import Path
-
 from torchcontrib.optim import SWA
 import wandb
 from torch.distributed.algorithms.ddp_comm_hooks import default_hooks, powerSGD_hook
@@ -530,8 +529,9 @@ class SWACallback(Callback):
 
         base_opt = trainer.optimizer
         if not isinstance(base_opt, torch.optim.SGD):
-            print(f"Warning: Only SGD optimizer is allowed to use in couple with SWA")
-            return
+            if self.rank == 0:
+                trainer.logger.log(f"Warning: Only SGD optimizer is allowed to use in couple with SWA")
+            
         
         swa_opt  = SWA(
             base_opt,
@@ -676,9 +676,11 @@ class TimerCallback(Callback):
         global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
         if trainer.rank == 0:
             log_str = (
+                "\n"
                 f"Step: {global_step}, "
                 f"Avg Batch Time: {as_minutes(self.timing_stats['average_batch_time'])}, "
                 f"Estimated Time Remaining: {as_minutes(self.timing_stats['estimated_time_remaining'])}"
+                "\n"
             )
             trainer.logger.log(log_str)
         

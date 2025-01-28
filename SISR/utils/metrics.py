@@ -34,7 +34,7 @@ class PSNRMetric:
         if self.device:
             preds = preds.to(self.device)
             targets = targets.to(self.device)
-            
+
         value = self.psnr(preds, targets).item()
         self.tracker.update(value)
         return value
@@ -114,7 +114,6 @@ class MetricCollection:
         self._initialize_metrics(config)
 
     def _initialize_metrics(self, config: DictConfig) -> None:
-        print("DEVICEEEEEEEEEEE", self.device)
         metrics_config = getattr(config.metrics, self.metric_type, {})
         for metric_name in metrics_config:
             metric_cls = MetricRegistry.get(metric_name)

@@ -177,7 +177,7 @@ class Trainer:
         
 
         for epoch in range(self.state.current_epoch, self.config.training.num_epochs):
-            self.state.current_epoch = epoch
+            self.state.current_epoch = epoch + 1
             self.callback_manager.trigger_event("on_train_epoch_start", trainer=self)
             
 
