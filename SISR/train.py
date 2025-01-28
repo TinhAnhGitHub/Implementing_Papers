@@ -343,7 +343,7 @@ class Trainer:
             with torch.no_grad():
                with tqdm(
                     total=total_batches,
-                    desc=f"Validation {self.state.current_epoch+1}/{self.config.training.num_epochs}",
+                    desc=f"Validation {self.state.current_epoch}/{self.config.training.num_epochs}",
                     unit="batch",
                     leave=True,
                 ) as pbar:
@@ -372,10 +372,10 @@ class Trainer:
         outputs, output_feat = self.model(lr_images)
 
         loss = self.criterion(
-            outputs=outputs,
-            targets=hr_images,
-            lr_features=output_feat,  
-            hr_features=batch.get("hr_features")   
+            outputs,
+            hr_images,
+            output_feat,  
+            batch.get("hr_features")   
         )
         with torch.no_grad():
             metrics = {

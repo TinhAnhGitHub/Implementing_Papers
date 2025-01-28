@@ -332,15 +332,16 @@ class ModelCkptCallback(Callback):
     
             monitor_type, metric_name = self.keep_condition.split("_",1)
             monitor_type = monitor_type.lower()
+
             
             if monitor_type == "train":
-                if not hasattr(trainer.train_metrics, metric_name):
+                if metric_name not in trainer.train_metrics.metrics:
                     raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
-                metric_value = getattr(trainer.train_metrics, metric_name).tracker.history[-1]
+                metric_value =  trainer.train_metrics.metrics.get(metric_name).tracker.history[-1]
             elif monitor_type == "val":
-                if not hasattr(trainer.val_metrics, metric_name):
+                if metric_name not in trainer.val_metrics.metrics:
                     raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
-                metric_value = getattr(trainer.val_metrics, metric_name).tracker.history[-1]
+                metric_value = trainer.val_metrics.metrics.get(metric_name).tracker.history[-1]
             else:
                 raise ValueError(f"Monitor type {monitor_type} is not valid")
             
@@ -428,16 +429,18 @@ class EarlyStoppingCallback(Callback):
             
             monitor_type, metric_name = self.monitor.split("_",1)
             monitor_type = monitor_type.lower()
+
+            
     
             if monitor_type == "train":
-                if not hasattr(trainer.train_metrics, metric_name):
+                if metric_name not in trainer.train_metrics.metrics:
                     raise ValueError(f"Monitor metric {metric_name} is not valid in train metrics")
                    
-                metric_tracker = getattr(trainer.train_metrics, metric_name).tracker
+                metric_tracker = trainer.train_metrics.metrics.get(metric_name).tracker
             elif monitor_type == "val":
-                if not hasattr(trainer.val_metrics, metric_name):
+                if metric_name not in trainer.val_metrics.metrics:
                     raise ValueError(f"Monitor metric {metric_name} is not valid in val metrics")
-                metric_tracker = getattr(trainer.val_metrics, metric_name).tracker
+                metric_tracker = trainer.val_metrics.metrics.get(metric_name).tracker
             else:
                 raise ValueError(f"Monitor type {monitor_type} is not valid")
     
