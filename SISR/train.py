@@ -271,6 +271,11 @@ class Trainer:
         self.train_metrics.update(metrics)
         return loss
     
+    def _denormalize(self, image):
+        image = (image + 1) / 2
+        image = image * 255
+        return image
+    
     def _visualization(
         self, prediction, batch, folder_to_save, is_train
     ):
@@ -280,21 +285,21 @@ class Trainer:
 
 
         file_name = os.path.join(folder_to_save, f'{global_step}_{self.rank}_pred_{suffix}.jpg')
-        output_cpu = prediction[0].detach().cpu().numpy()
-        output_cpu = np.transpose(output_cpu, (1, 2, 0))
-        plt.imsave(file_name, output_cpu)
+        prediction_denorm = self._denormalize(prediction[0].detach().cpu()).numpy()
+        prediction_denorm = np.transpose(prediction_denorm, (1, 2, 0))
+        plt.imsave(file_name, prediction_denorm)
 
 
         file_name_hr = os.path.join(prediction, f'{global_step}_{self.rank}_hr_{suffix}.jpg')
-        hr_cpu = batch['hr_image'][0].detach().cpu().numpy()
-        hr_cpu = np.transpose(hr_cpu, (1, 2, 0))
-        plt.imsave(file_name_hr, hr_cpu)
+        hr_denorm = self._denormalize(batch['hr_image'][0].detach().cpu()).numpy()
+        hr_denorm = np.transpose(hr_denorm, (1, 2, 0))
+        plt.imsave(file_name_hr, hr_denorm)
 
 
         file_name_lr = os.path.join(prediction, f'{global_step}_{self.rank}_lr_{suffix}.jpg')
-        lr_cpu = batch['lr_image'][0].detach().cpu().numpy()
-        lr_cpu = np.transpose(lr_cpu, (1, 2, 0))
-        plt.imsave(file_name_lr, lr_cpu)
+        lr_denorm = self.denormalize(batch['lr_image'][0].detach().cpu()).numpy()
+        lr_denorm = np.transpose(lr_denorm, (1, 2, 0))
+        plt.imsave(file_name_lr, lr_denorm)
 
 
         

@@ -6,8 +6,7 @@ class SuperResolutionTransform:
         config: dict
     ):
         self.config = config
-        self.normalize_mean = config.data.normalization.mean
-        self.normalize_std = config.data.normalization.std
+        
         self.preprocess_resize = config.data.preprocessing.resize
         self.aug_config  = config.augmentation
 
@@ -16,6 +15,11 @@ class SuperResolutionTransform:
             T.ToTensor(),
             T.Resize(self.preprocess_resize, antialias=True)
         ])
+    
+    def _normalize(self, image):
+        image = image / 255.0  
+        image = image * 2 - 1  
+        return image
 
     def get_train_transform(self):
         augs = []
@@ -47,11 +51,11 @@ class SuperResolutionTransform:
         return T.Compose([
             self.base_transform,
             *augs,
-            T.Normalize(mean=self.normalize_mean, std=self.normalize_std)
+            T.Lambda(self._normalize)  
         ])
     
     def get_val_transform(self):
         return T.Compose([
             self.base_transform,
-            T.Normalize(mean=self.normalize_mean, std=self.normalize_std)
+            T.Lambda(self._normalize)  
         ])
