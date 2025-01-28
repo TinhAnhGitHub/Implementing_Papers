@@ -9,30 +9,6 @@ import torchvision.models as models
 from .transform import SuperResolutionTransform
 from sklearn.model_selection import train_test_split
 
-class FeatureExtractor(nn.Module):
-    def __init__(self, layer_name: str = "features.35"):
-        
-        super().__init__()
-        
-       
-        self.model = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features
-
-        self.layer_name = layer_name
-        self.feature_model = nn.Sequential()
-
-        for name, module in self.model.named_children():
-            self.feature_model.add_module(name, module)
-            if name == layer_name.split(".")[0]:
-                break
-
-        for param in self.model.parameters():
-            param.requires_grad = False
-
-        self.model.eval()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        
-        return self.feature_model(x)
 
 class SuperResolutionDataset(Dataset):
     def __init__(
@@ -50,11 +26,7 @@ class SuperResolutionDataset(Dataset):
         self.scale_factor = scale_factor
         self.image_files = image_files
         self.img_dir = img_dir
-        self.use_feature_loss = use_feature_loss
-        if use_feature_loss:
-            self.feature_extractor = FeatureExtractor(layer_name=feature_layer)
-        else:
-            self.feature_extractor = None
+        
     
 
     
@@ -91,10 +63,6 @@ class SuperResolutionDataset(Dataset):
             "hr_image": hr_image
         }
 
-        if self.use_feature_loss and self.feature_extractor:
-            with torch.no_grad():
-                hr_features = self.feature_extractor(hr_image.unsqueeze(0)).squeeze(0)
-                output["hr_features"] = hr_features
 
         return output
         

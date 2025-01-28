@@ -2,7 +2,6 @@ from typing import List, Optional
 import torch
 import torch.nn as nn
 from .components import ConvLayer, UpsampleHandler
-from data import FeatureExtractor
 
 class DoubleConv(nn.Module):
     """Two consecutive convolutional layers with optional activation and normalization.
@@ -300,7 +299,6 @@ class UNet(nn.Module):
             use_norm=False,
             use_act=False,
         )
-        self.feat_ex = FeatureExtractor()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass."""
         skip_connections = []
@@ -319,5 +317,4 @@ class UNet(nn.Module):
             x = up(x, skip_connections[-(i + 1)] if self.ups[i].use_skip else None)
 
         x = self.final_conv(x)
-        x_feat = self.feat_ex(x)
-        return x, x_feat
+        return x

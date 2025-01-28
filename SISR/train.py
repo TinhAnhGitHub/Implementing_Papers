@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from data import  SuperResolutionDataset, SuperResolutionTransform, create_datasets
 from models import ModelFactory
 from utils import CallbackFactory, CallbackManager
-from utils import PatchLoss, MetricCollection
+from utils import  MetricCollection
 from utils import  create_optimizer_and_scheduler, setup, seed_everything, Logger, cleanup_processes, init_wandb
 
 
@@ -51,6 +51,11 @@ class Trainer:
         self.callback_manager = self._setup_callbacks()
 
         self.batch_cur_loss = 0
+
+        self.project_dir = os.path.join(
+            config.core.project_dir,
+            config.core.run_name
+        )
 
         self.state = TrainerState()
 
@@ -101,7 +106,7 @@ class Trainer:
         )
 
         #* Init loss and metric
-        self.criterion = PatchLoss(self.config)
+        self.criterion = torch.nn.MSELoss()
         
         self._setup_ddp()
 
@@ -273,14 +278,33 @@ class Trainer:
         lr_images = batch['lr_image']
         hr_images = batch["hr_image"]
 
-        outputs, output_feat = self.model(lr_images)
+        outputs = self.model(lr_images)
 
-        loss = self.criterion(
-            sr=outputs,
-            hr=hr_images,
-            lr_features=output_feat,  
-            hr_features=batch.get("hr_features")   
-        )
+        loss = self.criterion(outputs, hr_images)
+
+        
+        # print samples
+
+        print_sample_train = os.path.join(self.project_dir, 'train_samples')
+        os.makedirs(print_sample_train, exist_ok=True)
+        global_step =  len(self.train_loader) * self.state.current_epoch + self.state.current_batch_step
+        file_name = os.path.join(print_sample_train, f'{global_step}_{self.rank}_pred_train.jpg')
+        output_cpu = outputs[0].detach().cpu().numpy()
+        output_cpu = np.transpose(output_cpu, (1, 2, 0))
+        hr_cpu = batch['hr_image'][0].detach().cpu().numpy()
+        hr_cpu = np.transpose(hr_cpu, (1, 2, 0))
+        plt.imsave(file_name, output_cpu)
+        file_name_hr = os.path.join(print_sample_train, f'{global_step}_{self.rank}_gt_train.jpg')
+        plt.imsave(file_name_hr, hr_cpu)
+
+
+
+
+        
+
+        
+
+
         
         if torch.isnan(loss) or torch.isinf(loss):
             if self.rank == 0:
@@ -369,13 +393,24 @@ class Trainer:
         lr_images = batch['lr_image']
         hr_images = batch["hr_image"]
 
-        outputs, output_feat = self.model(lr_images)
+        outputs = self.model(lr_images)
+
+        # sample test
+        print_sample_train = os.path.join(self.project_dir, 'test_samples')
+        os.makedirs(print_sample_train, exist_ok=True)
+        global_step =  len(self.train_loader) * self.state.current_epoch + self.state.current_batch_step
+        file_name = os.path.join(print_sample_train, f'{global_step}_{self.rank}_pred_train.jpg')
+        output_cpu = outputs[0].detach().cpu().numpy()
+        output_cpu = np.transpose(output_cpu, (1, 2, 0))
+        hr_cpu = batch['hr_image'][0].detach().cpu().numpy()
+        hr_cpu = np.transpose(hr_cpu, (1, 2, 0))
+        plt.imsave(file_name, output_cpu)
+        file_name_hr = os.path.join(print_sample_train, f'{global_step}_{self.rank}_gt_train.jpg')
+        plt.imsave(file_name_hr, hr_cpu)
 
         loss = self.criterion(
             outputs,
-            hr_images,
-            output_feat,  
-            batch.get("hr_features")   
+            hr_images
         )
         with torch.no_grad():
             metrics = {
