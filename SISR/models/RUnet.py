@@ -63,10 +63,9 @@ class ResidualBlock(nn.Module):
         )
 
         self.layers = nn.Sequential(*layers)
-    def forward(self, x:torch.Tensor) -> torch.Tensor:
-        x_output = self.layers(x) 
+        self.conv_skip = None
         if self.in_channels != self.out_channels:
-            conv_skip = ConvLayer(
+            self.conv_skip = ConvLayer(
                 in_channels=self.in_channels,
                 out_channels=self.out_channels,
                 kernel_size=1,
@@ -76,7 +75,10 @@ class ResidualBlock(nn.Module):
                 use_dropout=False,
                 use_norm=False
             )
-            x = conv_skip(x)
+    def forward(self, x:torch.Tensor) -> torch.Tensor:
+        x_output = self.layers(x) 
+        if self.in_channels != self.out_channels:
+            x = self.conv_skip(x)
         
         final_output = x_output + x
         return final_output
