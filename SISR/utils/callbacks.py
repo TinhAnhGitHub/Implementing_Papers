@@ -260,8 +260,9 @@ class WandbLoggerCallback(Callback):
                     log_dict.update({
                         'global_gradient_norm': grad_stats['global_gradient_norm']
                     })
-                if log_dict:
-                    wandb.log(log_dict, step=global_step)
+            print(global_step)
+            if log_dict:
+                wandb.log(log_dict, step=global_step)
             
         trainer.accelerator.wait_for_everyone()
             
@@ -649,8 +650,8 @@ class TimerCallback(Callback):
         self.timing_stats['average_batch_time'] = np.mean(self.batch_times).item()
 
         self._update_time_estimation(trainer)
-
-        if trainer.state.global_step % trainer.config.logging.interval == 0:
+        global_step = len(trainer.train_loader) * trainer.state.current_epoch + trainer.state.current_batch_step
+        if global_step % trainer.config.logging.interval == 0:
             self._log_timing_stats(trainer)
         
 

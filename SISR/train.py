@@ -175,7 +175,7 @@ class Trainer:
         self.callback_manager.trigger_event("on_train_start", trainer=self)
 
         for epoch in range(self.state.current_epoch, self.config.training.num_epochs):
-            self.state.current_epoch = epoch + 1
+            self.state.current_epoch = epoch 
             self.callback_manager.trigger_event("on_train_epoch_start", trainer=self)
                 
             self._train_epoch(epoch)
@@ -222,7 +222,7 @@ class Trainer:
                     leave=True,
             ) as pbar:
               for batch_idx, batch in enumerate(self.train_loader):
-                self.state.current_batch_step = batch_idx + 1
+                self.state.current_batch_step = batch_idx 
                 self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
 
                 with self.accelerator.accumulate(self.model):
@@ -238,7 +238,7 @@ class Trainer:
                     self._log_training_metrics()
         else:
             for batch_idx, batch in enumerate(self.train_loader):
-                self.state.current_batch_step = batch_idx + 1
+                self.state.current_batch_step = batch_idx 
                 self.callback_manager.trigger_event("on_train_batch_start", trainer=self)
 
                 with self.accelerator.accumulate(self.model):
