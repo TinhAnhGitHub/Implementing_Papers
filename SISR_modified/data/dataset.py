@@ -3,7 +3,7 @@ import torch
 from PIL import Image
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
-
+import torch.nn.functional as F
 from torchvision import transforms
 import random
 
@@ -11,39 +11,63 @@ import os
 from typing import Tuple, List
 
 class ImageDataset(Dataset):
-    def __init__(self, image_paths: List[str], low_img_size: Tuple[int,int], is_train: True):
-
-
+    def __init__(self, img_dir:str, image_paths: List[str], low_img_size: Tuple[int,int], scale_factor: int, is_train: bool = True):
         self.low_img_size = low_img_size
         self.images = image_paths
-        self.resize = transforms.Resize((low_img_size[0], low_img_size[1]), antialias=True)
+        
         self.is_train = is_train
-    
+        self.img_dir = img_dir
+        self.scale_factor = scale_factor
+
+        self.train_transforms = transforms.Compose([
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomRotation(degrees=(-20, 20)),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+            transforms.ToTensor(),  
+        ])
+
+        self.val_transforms = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+
+        
+
+        
     def __len__(self):
         return len(self.images)
 
-    def normalize(self, input_image: Tensor, target_image: Tensor) -> Tuple[Tensor, Tensor]:
-        input_image = input_image * 2 - 1
-        target_image = target_image * 2 - 1
-        return input_image, target_image
+    def normalize(self, image: Tensor) -> Tensor:
+        image = image * 2 - 1
+        return image
+    
 
-    def random_jitter(self, input_image: Tensor, target_image: Tensor) -> Tuple[Tensor, Tensor]:
-        if torch.rand([]) < 0.5:
-            input_image = transforms.functional.hflip(input_image)
-            target_image = transforms.functional.hflip(target_image)
-        return input_image, target_image
+
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor]:
         img_path = os.path.join(self.img_dir, self.images[idx])
-        image = np.array(Image.open(img_path).convert("RGB"))
-        image = transforms.functional.to_tensor(image)
-        input_image = self.resize(image).type(torch.float32)
-        target_image = image.type(torch.float32)
+        image = Image.open(img_path).convert("RGB")  
 
-        input_image, target_image = self.normalize(input_image, target_image)
         if self.is_train:
-            input_image, target_image = self.random_jitter(input_image, target_image)
-        
+            image = self.train_transforms(image)
+        else:
+            image = self.val_transforms(image)
+
+        input_image = F.interpolate(image.unsqueeze(0), size=self.low_img_size, mode='bicubic', antialias=True).squeeze(0)
+        target_image = F.interpolate(image.unsqueeze(0), size=(self.low_img_size[0] * self.scale_factor, self.low_img_size[1] * self.scale_factor), mode='bicubic', antialias=True).squeeze(0)
+
+
+        if self.is_train:
+            i, j, h, w = transforms.RandomCrop.get_params(
+                input_image, output_size=(self.low_img_size[0] // 2, self.low_img_size[1] // 2) 
+            )
+            input_image = transforms.functional.crop(input_image, i, j, h, w)
+            target_image = transforms.functional.crop(target_image, i*self.scale_factor, j*self.scale_factor, h*self.scale_factor, w*self.scale_factor)
+
+            input_image = input_image + torch.randn_like(input_image) * 0.05 
+
+        input_image = self.normalize(input_image)
+        target_image = self.normalize(target_image)
+
         return input_image, target_image
 
 
@@ -55,16 +79,20 @@ def get_dataloaders(cfg: dict) -> Tuple[DataLoader, DataLoader]:
     low_img_size = cfg['dataset']['low_img_size']
     num_workers = cfg['dataset']['num_workers']
 
+    scale_factor = cfg['model']['scale_factor']
+
 
     image_paths = os.listdir(data_path)
+    
     random.shuffle(image_paths)
 
-    train_images = image_paths[:len(image_paths)* (1- val_size)]
-    val_images = image_paths[len(image_paths)* (1- val_size):]
+    train_size = int(len(image_paths) * (1 - val_size)) 
+    train_images = image_paths[:train_size] 
+    val_images = image_paths[train_size:]
 
 
-    train_dataset = ImageDataset(train_images, low_img_size, True)
-    val_dataset = ImageDataset(val_images, low_img_size, data_path, is_train=False)
+    train_dataset = ImageDataset(data_path, train_images, low_img_size, scale_factor, True)
+    val_dataset = ImageDataset(data_path, val_images, low_img_size, scale_factor, False)
 
 
     train_loader = DataLoader(

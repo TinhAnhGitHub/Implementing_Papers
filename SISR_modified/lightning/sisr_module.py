@@ -38,7 +38,7 @@ class SISRModule(pl.LightningModule):
             initial_filters=model_cfg["initial_filters"],
             scale_factor=model_cfg["scale_factor"],
             up_mode=model_cfg["up_mode"],
-            use_skip_connections=cfg['use_skip_connections']
+            use_skip_connections=model_cfg['use_skip_connections']
         )
 
         loss_cfg = cfg['loss']
@@ -55,8 +55,8 @@ class SISRModule(pl.LightningModule):
         self.awp_start = cfg["awp"].get("awp_start", 1.0)
         self.adv_loss_weight = cfg["awp"].get("adv_loss_weight", 0.1)
 
-
-        self.example_input_array = torch.rand(1, model_cfg["in_channels"], cfg['dataset']['low_img_size'][0],cfg['dataset']['low_img_size'][1])
+     
+        self.example_input_array = torch.rand(1, int(model_cfg["in_channels"]), int(cfg['dataset']['low_img_size'][0]),int(cfg['dataset']['low_img_size'][1]))
 
 
         self.save_hyperparameters(cfg)
@@ -78,11 +78,12 @@ class SISRModule(pl.LightningModule):
         loss = self.criterion(sr_image, hr_image)
 
         ssim_acc = ssim(sr_image, hr_image)
-        psnr_db = psnr(lr_image, hr_image)
+        psnr_db = psnr(sr_image, hr_image)
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_ssim", ssim_acc, on_step=True, on_epoch=True, prog_bar=True)
         self.log("train_psnr", psnr_db, on_step=True, on_epoch=True, prog_bar=True)
+        
 
         if self.use_awp and self.awp is not None and self.current_epoch >= self.awp_start:
             self.awp._save()
@@ -102,24 +103,25 @@ class SISRModule(pl.LightningModule):
 
     def validation_step(self, batch: Any, batch_idx: int) -> Dict[str, torch.Tensor]:
         lr_image, hr_image = batch
-
+    
         if self.use_ema:
             self.ema.apply_shadow()
-
+    
         sr_image = self(lr_image)
         loss = self.criterion(sr_image, hr_image)
         ssim_acc = ssim(sr_image, hr_image)
         psnr_acc = psnr(sr_image, hr_image)
-
+    
+        
+    
         self.log("val_loss", loss, on_epoch=True, prog_bar=True)
         self.log("val_ssim", ssim_acc, on_epoch=True, prog_bar=True)
         self.log("val_psnr", psnr_acc, on_epoch=True, prog_bar=True)
-
+    
         if self.use_ema:
             self.ema.restore()
         
-        
-        return {"val_loss": loss, "val_ssim": ssim, "val_psnr": psnr}
+        return {"val_loss": loss, "val_ssim": ssim_acc, "val_psnr": psnr_acc}
     
     def configure_optimizers(self):
 
@@ -148,10 +150,4 @@ class SISRModule(pl.LightningModule):
 
         return {"optimizer": optimizer, "lr_scheduler": {"scheduler": scheduler, "interval": "step"}}
     
-    
-        
-
-        
-
-
     

@@ -139,20 +139,36 @@ class WarmupScheduler(_LRScheduler):
 
 
 def create_optimizer_scheduler(
-    model: torch.nn.Module, 
-    optimizer_config: Dict[str, Any], 
-    scheduler_config: Dict[str, Any], 
+    model: torch.nn.Module,
+    optimizer_config: Dict[str, Any],
+    scheduler_config: Dict[str, Any],
     warmup_config: Dict[str, Any],
-    total_steps: int
+    total_steps: int,
 ):
+    """
+    Create optimizer and scheduler with warmup support.
+
+    Args:
+        model (torch.nn.Module): Model parameters to optimize.
+        optimizer_config (dict): Optimizer configuration.
+        scheduler_config (dict): Scheduler configuration.
+        warmup_config (dict): Warmup configuration.
+        total_steps (int): Total number of training steps.
+
+    Returns:
+        Tuple[Optimizer, _LRScheduler]: The optimizer and scheduler.
+    """
     optimizer_type = optimizer_config["type"].lower()
-    lr = optimizer_config["lr"]
-    weight_decay = optimizer_config.get("weight_decay", 0.0)
-    
+    lr = float(optimizer_config["lr"])
+    weight_decay = float(optimizer_config.get("weight_decay", 0.0))
+
     if optimizer_type == "sgd":
         optimizer = SGD(
-            model.parameters(), lr=lr, momentum=optimizer_config.get("momentum", 0.9),
-            weight_decay=weight_decay, nesterov=optimizer_config.get("nesterov", False)
+            model.parameters(),
+            lr=lr,
+            momentum=float(optimizer_config.get("momentum", 0.9)),
+            weight_decay=weight_decay,
+            nesterov=optimizer_config.get("nesterov", False),
         )
     elif optimizer_type == "adam":
         optimizer = Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -160,46 +176,61 @@ def create_optimizer_scheduler(
         optimizer = AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     else:
         raise ValueError(f"Unknown optimizer type: {optimizer_type}")
-    
-    
 
-    
-    
+    scheduler_type = scheduler_config["type"].lower()
     if scheduler_type == "step":
-        scheduler = StepLR(optimizer, step_size=scheduler_config["step_size"], gamma=scheduler_config["gamma"])
+        scheduler = StepLR(
+            optimizer,
+            step_size=int(scheduler_config["step_size"]),
+            gamma=float(scheduler_config["gamma"]),
+        )
     elif scheduler_type == "exponential":
-        scheduler = ExponentialLR(optimizer, gamma=scheduler_config["gamma"])
+        scheduler = ExponentialLR(optimizer, gamma=float(scheduler_config["gamma"]))
     elif scheduler_type == "cosine":
-        scheduler = CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=scheduler_config["lr_end"])
+        lr_end = float(scheduler_config["lr_end"])
+        scheduler = CosineAnnealingLR(optimizer, T_max=total_steps, eta_min=lr_end)
     elif scheduler_type == "plateau":
-        scheduler = ReduceLROnPlateau(optimizer, mode=scheduler_config["mode"],
-                                      factor=scheduler_config["factor"], patience=scheduler_config["patience"],
-                                      min_lr=scheduler_config["lr_end"])
+        lr_end = float(scheduler_config["lr_end"])
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            mode=scheduler_config["mode"],
+            factor=float(scheduler_config["factor"]),
+            patience=int(scheduler_config["patience"]),
+            min_lr=lr_end,
+        )
     elif scheduler_type == "cyclic":
-        scheduler = CyclicLR(optimizer, base_lr=scheduler_config["lr_min"], max_lr=scheduler_config["lr_max"],
-                             step_size_up=scheduler_config["cycle_steps"] // 2, mode=scheduler_config["mode"])
+        lr_min = float(scheduler_config["lr_min"])
+        lr_max = float(scheduler_config["lr_max"])
+        cycle_steps = int(scheduler_config["cycle_steps"])
+        scheduler = CyclicLR(
+            optimizer,
+            base_lr=lr_min,
+            max_lr=lr_max,
+            step_size_up=cycle_steps // 2,
+            mode=scheduler_config["mode"],
+        )
     elif scheduler_type == "one_cycle":
-        scheduler = OneCycleLR(optimizer, max_lr=scheduler_config["lr_max"], total_steps=total_steps,
-                               pct_start=scheduler_config["pct_start"], div_factor=scheduler_config["div_factor"],
-                               final_div_factor=scheduler_config["final_div_factor"])
+        lr_max = float(scheduler_config["lr_max"])
+        scheduler = OneCycleLR(
+            optimizer,
+            max_lr=lr_max,
+            total_steps=total_steps,
+            pct_start=float(scheduler_config["pct_start"]),
+            div_factor=float(scheduler_config["div_factor"]),
+            final_div_factor=float(scheduler_config["final_div_factor"]),
+        )
     else:
         raise ValueError(f"Unknown scheduler type: {scheduler_type}")
-    
 
-
-    if warmup_config.get("epochs", 0) > 0:
+    if float(warmup_config.get("epochs", 0)) > 0:
         scheduler = WarmupScheduler(
-            optimizer=optimizer, 
+            optimizer=optimizer,
             scheduler=scheduler,
-            warmup_epochs=warmup_config["epochs"],
+            warmup_epochs=int(warmup_config["epochs"]),
             warmup_bias_lr=warmup_config.get("bias_lr"),
             warmup_momentum=warmup_config.get("momentum"),
             momentum=warmup_config.get("final_momentum"),
-            warmup_strategy=warmup_config["strategy"]
+            warmup_strategy=warmup_config["strategy"],
         )
-    
+
     return optimizer, scheduler
-
-
-
-

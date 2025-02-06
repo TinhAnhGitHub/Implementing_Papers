@@ -12,7 +12,6 @@ from pytorch_lightning.callbacks import (
     ModelCheckpoint,
     LearningRateMonitor,
     RichModelSummary,
-    RichProgressBar,
     TQDMProgressBar,
     StochasticWeightAveraging,
     Timer
@@ -72,13 +71,12 @@ def main():
 
     lr_monitor = LearningRateMonitor(logging_interval="step")
     model_summary = RichModelSummary(max_depth=2)
-    rich_progress = RichProgressBar()
-    tqdm_progress = TQDMProgressBar()
+    progress_bar = TQDMProgressBar(refresh_rate=30)
     swa_cb = StochasticWeightAveraging(swa_lrs=cfg["training"].get("swa_lrs", 1e-3)) if args.use_swa else None
     timer_cb = Timer()
 
    
-    callbacks = [checkpoint_cb, lr_monitor, model_summary, rich_progress, tqdm_progress, timer_cb]
+    callbacks = [checkpoint_cb, lr_monitor, model_summary, progress_bar, timer_cb]
     if swa_cb:
         callbacks.append(swa_cb)
 
@@ -89,7 +87,7 @@ def main():
         callbacks=callbacks,
         log_every_n_steps=50,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
-        devices=1,
+        devices=1
     )
 
     model = SISRModule(cfg)

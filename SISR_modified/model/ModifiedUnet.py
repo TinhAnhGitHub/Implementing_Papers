@@ -194,6 +194,7 @@ class ModifiedUnetSR(nn.Module):
             x = extra_up(x)
         
         x = self.out_conv(x)
+        print("Output shape: ", x.shape )
         return x
 
 
@@ -202,11 +203,11 @@ if __name__ == "__main__":
 
     model_with_skip = ModifiedUnetSR(in_channels=3, out_channels=3, depth=4, initial_filters=64, scale_factor=2, up_mode='transposed', use_skip_connections=True)
     print("Model with skip connections:")
-    print(summary(model_with_skip, (3, 64, 64)))
+    print(summary(model_with_skip, (3, 256, 256)))
 
-    model_without_skip = ModifiedUnetSR(in_channels=3, out_channels=3, depth=6, initial_filters=64, scale_factor=2, up_mode='transposed', use_skip_connections=False)
-    print("\nModel without skip connections:")
-    print(summary(model_without_skip, (3, 64, 64)))
+    # model_without_skip = ModifiedUnetSR(in_channels=3, out_channels=3, depth=6, initial_filters=64, scale_factor=2, up_mode='transposed', use_skip_connections=False)
+    # print("\nModel without skip connections:")
+    # print(summary(model_without_skip, (3, 64, 64)))
 
     
 
