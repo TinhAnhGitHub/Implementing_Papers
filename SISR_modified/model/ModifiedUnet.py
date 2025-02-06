@@ -194,7 +194,6 @@ class ModifiedUnetSR(nn.Module):
             x = extra_up(x)
         
         x = self.out_conv(x)
-        print("Output shape: ", x.shape )
         return x
 
 
