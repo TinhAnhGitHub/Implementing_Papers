@@ -17,6 +17,7 @@ import torch.multiprocessing as mp
 
 
 
+
 def as_minutes(seconds: Union[int, float]) -> str:
     if seconds < 0:
         raise ValueError("Time in seconds cannot be negative")
@@ -47,15 +48,6 @@ def as_minutes(seconds: Union[int, float]) -> str:
 
 
 def seed_everything(seed: int) -> None:
-    """
-    Set a consistent random seed across multiple libraries for reproducibility.
-    
-    This function ensures that random number generation is deterministic 
-    for Python's random module, NumPy, and PyTorch (including CUDA).
-    
-    Args:
-        seed (int): The seed value to be used for random number generation.
-    """
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
     np.random.seed(seed)
@@ -288,6 +280,9 @@ class AWP:
                 param.data = self.backup[name]
         self.backup = {}
         self.backup_eps = {}
+
+
+
 
 
 

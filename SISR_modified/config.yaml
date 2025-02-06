@@ -1,0 +1,77 @@
+seed: 0317
+
+model:
+  in_channels: 3
+  out_channels: 3
+  depth: 6
+  initial_filters: 64
+  scale_factor: 2
+  up_mode: transposed
+  use_skip_connections: True
+
+dataset:
+  data_path: 'path'
+  val_size: 0.15
+  low_img_size: (256,256)  # the train size, the output model will be low_image_size * scale factor
+  num_workers: 4
+
+training:
+  batch_size: 16
+  max_epochs: 50
+  accumulate_grad_batches: 2
+
+optimizer:
+  type: 'adamw'
+  lr: 1e-4              # Standard learning rate for SISR tasks
+  weight_decay: 1e-4    # Moderate regularization
+  momentum: 0.9137         # Standard momentum value for SGD (if used)
+  nesterov: True        # Enable Nesterov momentum for better convergence
+
+scheduler:
+  type: 'CosineAnnealing'
+  step_size: 10         # For StepLR (if used)
+  gamma: 0.5           # For StepLR and ExponentialLR (if used)
+  lr_end: 1e-7         # Minimum learning rate for cosine annealing
+  mode: 'min'          # For ReduceLROnPlateau (if used)
+  factor: 0.5          # For ReduceLROnPlateau (if used)
+  patience: 5          # For ReduceLROnPlateau (if used)
+  lr_min: 1e-7         # Minimum learning rate for CyclicLR (if used)
+  lr_max: 1e-3         # Maximum learning rate for CyclicLR and OneCycleLR (if used)
+  cycle_steps: 2000    # Steps per cycle in CyclicLR (if used)
+  pct_start: 0.3       # Fraction of training for OneCycleLR (if used)
+  div_factor: 25       # Initial lr scaling in OneCycleLR (if used)
+  final_div_factor: 1e4 # Final lr scaling in OneCycleLR (if used)
+
+warmup:
+  warmup_epochs: 5           # Gradual warmup to prevent early instability
+  strategy: 'linear'         # Linear warmup is most commonly used
+  bias_lr: 1e-4             # Same as main learning rate
+  momentum: 0.9             # Initial momentum
+  final_momentum: 0.9       # Final momentum after warmup
+
+loss:
+  loss_type: MixGradient    # Combined pixel and gradient loss
+  lambda_g: 0.1             # Weight for gradient loss component
+
+ema:
+  use_ema: true            # Exponential Moving Average for stable training
+  decay: 0.999             # Standard EMA decay rate
+
+awp:
+  use_awp: true           # Adversarial Weight Perturbation for robustness
+  adv_param: weight
+  adv_lr: 0.001
+  adv_eps: 0.001
+
+logging:
+  project: SISR
+  run_name: ModifiedUnetSR_experiment
+
+checkpoint:
+  monitor: val_ssim        # SSIM is often preferred for image quality
+  mode: max
+  save_top_k: 3
+  dirpath: ./checkpoints
+
+validation:
+  global_validations: 5

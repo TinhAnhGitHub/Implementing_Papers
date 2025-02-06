@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+
+SISR/
+
+
 # Distribution / packaging
 .Python
 build/
